@@ -27,33 +27,22 @@ use Data::Dumper;
 # use IO::All;
 
 
-#our $VERSION = '$Id: pass_plots.pl,v 1.1.1.1 2007-02-09 20:09:41 jeanconn Exp $'; # '
 our %opt = ();
 
 GetOptions (\%opt,
 	    'help!',
 	    'dir=s',
-	    'web_dir=s',
 	   );
 
-help() if $opt{help};
+usage( 1 )
+    if $opt{help};
 
-
-sub help
-{
-  my $verbose = @_ ? shift : 2;
-  require Pod::Usage;
-  Pod::Usage::pod2usage ( { -exitval => 0, -verbose => $verbose } );
-}
-
-print Dumper %opt;
 
 # Set some global vars with directory locations
 my $SKA = $ENV{SKA} || '/proj/sot/ska';
-my $TASK = 'perigee_plots';
+my $TASK = 'perigee_health_plots';
 my $SHARE = "$ENV{SKA}/share/${TASK}";
 
-my $WEB_DIR = "${SKA}/www/ASPECT/perigee_health_plots/";
 my $WORKING_DIR = $ENV{PWD};
 
 
@@ -61,10 +50,6 @@ if ( defined $opt{dir}){
     $WORKING_DIR = $opt{dir};
     
 }
-if ( defined $opt{web_dir}){
-    $WEB_DIR = $opt{web_dir};
-}
-
 
 my $RADMON_DIR = "${SKA}/data/arc/iFOT_events/radmon/";
 my @radmon_files = glob("$RADMON_DIR/*");
@@ -84,13 +69,10 @@ my %passes;
  
 #@radmon_files = @radmon_files[0 ... 10];
 
-#print Dumper @radmon_files;
 
 for my $radmon_file (reverse(@radmon_files)){
 
-
     my @radmon_table = reverse(@{parse_table( $radmon_file )});
-
     
     for my $step (0 .. $#radmon_table-1){
 	my %radzone;
@@ -108,8 +90,6 @@ print "Getting Data for These Passes:\n";
 print Dumper %passes;
 print "Storing telemetry in : $WORKING_DIR \n";
 
-#!/usr/bin/env /proj/sot/ska/bin/perlska
-
 
 for my $pass_start (keys %passes){
 
@@ -124,6 +104,7 @@ for my $pass_start (keys %passes){
 	next;
     }
 
+    # Load the other packages required
     eval 'use File::Path qw/ mkpath rmtree /';
     if ($@){
 	croak(__PACKAGE__ .": !$@");
@@ -144,7 +125,9 @@ for my $pass_start (keys %passes){
     print "mkdir ${WORKING_DIR}/$pass{tstart} \n";
     mkpath("${WORKING_DIR}/$pass{tstart}");
 
-    my (@obsfiles1, @obsfiles2, @obsfiles3);
+    # Retrieve the telemetry needed to run the idl to make the plots
+
+    my (@obsfiles1, @obsfiles2);
     eval{
 	@obsfiles1 = get_archive_files(guestuser => 1,
 				       tstart    => $tstart,
@@ -155,16 +138,7 @@ for my $pass_start (keys %passes){
 				       loud      => 0,
 				       );
 
-#	@obsfiles2 = get_archive_files(guestuser => 1,
-#				       tstart    => $tstart,
-#				       tstop     => $tstop,
-#				       prod      => "eps_eng_0[*_9_*.fits]",
-#				       file_glob => "*_9_*.fits*",
-#				       dir       => $ENV{PWD} . "/$pass{tstart}/",
-#				       loud      => 0,
-#				       );
-#
-	@obsfiles3 = get_archive_files(guestuser => 1,
+	@obsfiles2 = get_archive_files(guestuser => 1,
 				       tstart    => $tstart,
 				       tstop     => $tstop,
 				       prod => "ccdm0[*_10_*]",
@@ -185,13 +159,14 @@ for my $pass_start (keys %passes){
 	next;
     }
     else{
+	# put out a little text file with the tstart and stop time of the pass
 	my $notes = io("${WORKING_DIR}/$pass{tstart}/pass_times.txt");
 	$notes->print("TSTART\tTSTOP\n");
 	$notes->print("$pass{tstart}\t$pass{tstop}\n");
     }
 
 
-
+    # Run the plot making from IDL
     
     my $idl = new Expect::Simple  { Cmd => "idl",
 				    Prompt => 'IDL>',
@@ -213,13 +188,17 @@ for my $pass_start (keys %passes){
     $idl->send("aca_health, \'${WORKING_DIR}/$pass{tstart}\', \'$ps_outfile\'");
 #    print "aca_health, \'${WORKING_DIR}/$pass{tstart}\', \'$ps_outfile\' \n\n";
 
+    # Eventually make the gif using the perlmagick interface
 #    use Image::Magick;
 #    my $image = new Image::Magick;
 #    $image->Read("$pass{tstart}/$ps_outfile");
 #    $image->Write("$WEB_DIR/$pass{tstart}/$gif_outfile")
 
+    # Make a GIF from the Postscript
     system(" convert -rotate -90 -density 100x100 ${WORKING_DIR}/$pass{tstart}/$ps_outfile ${WORKING_DIR}/$pass{tstart}/$gif_outfile");
     print(" convert -rotate -90 -density 100x100 ${WORKING_DIR}/$pass{tstart}/$ps_outfile ${WORKING_DIR}/$pass{tstart}/$gif_outfile\n");
+
+    # I now copy the files over with install_plots
 
 #    if ( -e "${WORKING_DIR}/$pass{tstart}/$gif_outfile" ){
 	
@@ -237,9 +216,56 @@ for my $pass_start (keys %passes){
 
 
 
-#
-#print Dumper @passes;    
-#
-# Run the data preparation and extraction IDL routines
-# All output from the IDL goes into $acadir/Result
+##***************************************************************************
+sub usage
+##***************************************************************************
+{
+  my ( $exit ) = @_;
+
+  local $^W = 0;
+  eval 'use Pod::Text';
+  if ($@){
+      croak(__PACKAGE__ . ": !$@");
+  }
+  Pod::Text::pod2text( '-75', $0 );
+  exit($exit) if ($exit);
+}
+
+=pod
+
+=head1 NAME
+
+pass_plots.pl - Download aca0 image telemetry from recent perigee passes and create plots of ACA health metrics
+
+=head1 SYNOPSIS
+
+B<pass_plots.pl>  [I<options>]
+
+=head1 OPTIONS
+
+=over 4
+
+=item B<-help>
+
+Print this help information.
+
+=item B<-dir <dir>>
+
+Save the telemetry and create the plots in <dir>
+
+=back
+
+=head1 DESCRIPTION
+
+B<pass_plots.pl> reads the tables of recent perigee pass times from arc , and
+then downloads aca level 0 telemetry for those passes.  It then creates postscript and gif plots
+using the 'aca_health.pro' idl script.
+
+=head1 AUTHOR
+
+Jean Connelly ( jconnelly@localdomain )
+
+=cut
+
+
 

@@ -1,4 +1,7 @@
 pro aca_health, dirname, ps_outfile
+; Script to read temperatures and levels stuck in HDR3 aca 0 telemetry
+; and make plots
+
 cd, dirname
 
 columns=['imgraw', 'quality', 'time', 'TEMPCCD', 'TEMPHOUS','TEMPPRIM','TEMPSEC','HD3TLM62','HD3TLM63','HD3TLM64','HD3TLM65','HD3TLM66','HD3TLM67','HD3TLM72','HD3TLM73','HD3TLM74','HD3TLM75','HD3TLM76','HD3TLM77']
@@ -11,8 +14,6 @@ obs2 = { PLOTDEF, COLOR: !col.blue, SYMBOL: 1}
 obs3 = { PLOTDEF, COLOR: !col.red, SYMBOL: 1}
 obs4 = { PLOTDEF, COLOR: !col.light_blue, SYMBOL: 1}
 obs5 = { PLOTDEF, COLOR: !col.magenta, SYMBOL: 1}
-
-
 
 
 obscnt = 6
