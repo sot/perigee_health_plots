@@ -72,6 +72,10 @@ my %passes;
 
 for my $radmon_file (reverse(@radmon_files)){
 
+    # skip the file unless it is readable
+    next unless ( -r $radmon_file );
+
+    # read it in reverse order if it is
     my @radmon_table = reverse(@{parse_table( $radmon_file )});
     
     for my $step (0 .. $#radmon_table-1){
@@ -99,7 +103,7 @@ for my $pass_start (keys %passes){
     my $tstop = date2time($pass{tstop});
 
     # skip retrieve if directory already exists
-    if ( -e "${WORKING_DIR}/$pass{tstart}/$ps_outfile"){
+    if ( -e "${WORKING_DIR}/$pass{tstart}/$gif_outfile"){
 	print "Skipping $pass{tstart}; already exists \n";
 	next;
     }
@@ -195,8 +199,18 @@ for my $pass_start (keys %passes){
 #    $image->Write("$WEB_DIR/$pass{tstart}/$gif_outfile")
 
     # Make a GIF from the Postscript
-    system(" convert -rotate -90 -density 100x100 ${WORKING_DIR}/$pass{tstart}/$ps_outfile ${WORKING_DIR}/$pass{tstart}/$gif_outfile");
-    print(" convert -rotate -90 -density 100x100 ${WORKING_DIR}/$pass{tstart}/$ps_outfile ${WORKING_DIR}/$pass{tstart}/$gif_outfile\n");
+    # convert doesn't seem to work on solaris
+#    system(" convert -rotate -90 -density 100x100 ${WORKING_DIR}/$pass{tstart}/$ps_outfile ${WORKING_DIR}/$pass{tstart}/$gif_outfile");
+#    print(" convert -rotate -90 -density 100x100 ${WORKING_DIR}/$pass{tstart}/$ps_outfile ${WORKING_DIR}/$pass{tstart}/$gif_outfile\n");
+
+    # ps2gif doesn't seem to like full path args for files, so let's go to the directory
+    my $current_dir = $ENV{'PWD'};
+    chdir("${WORKING_DIR}/$pass{tstart}/");
+    system("/proj/sot/ska/bin/ps2gif -density 100 -flip r90 $ps_outfile -out $gif_outfile");
+    print("/proj/sot/ska/bin/ps2gif -density 100 -flip r90 $ps_outfile -out $gif_outfile\n");
+    chdir("$current_dir");
+
+
 
     # I now copy the files over with install_plots
 
