@@ -18,6 +18,7 @@ install:
 ifdef DATA
 	mkdir -p $(INSTALL_DATA)
 	rsync --times --cvs-exclude $(DATA) $(INSTALL_DATA)/
+endif
 ifdef SHARE
 	mkdir -p $(INSTALL_SHARE)
 	rsync --times --cvs-exclude $(SHARE) $(INSTALL_SHARE)/
