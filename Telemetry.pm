@@ -1,4 +1,38 @@
+package Telemetry::BinTable::Header;
+
+use strict;
+use warnings;
+
+sub new{
+    
+    my $class = shift;
+    my $self = shift;
+    bless $self, $class;
+    return $self;
+
+}
+
+1;
+
+package Telemetry::BinTable::Table;
+
+use strict;
+use warnings;
+
+sub new{
+
+    my $class = shift;
+    my $self = shift;
+    bless $self, $class;
+    return $self;
+
+}
+   
+1;
+
 package Telemetry::BinTable;
+# class to store the header of a fits file and 
+# to read and store the binary table
 
 use strict;
 use warnings;
@@ -89,11 +123,13 @@ sub process{
 	@columns = @{$self->{columns}};
     }
     my %fits = fits_read_bintbl( $self->file, @columns );
-    $self->bintable(\%fits);
+    my $table = Telemetry::BinTable::Table->new(\%fits);
+    $self->bintable($table);
     $self->length( $fits{time}->nelem );
     my @order;
     my %data;
-    for my $i (0 ... 50){
+    # possible columns 1 - 9999
+    for my $i (1 ... 9999){
 	my $keyword = $hdr->{"TTYPE$i"};
 	if (defined $keyword){
 	    # strip off trailing spaces
@@ -123,9 +159,13 @@ sub process{
 
 	    $data{$keyword} = \%keyvals;	    
 	}
+	else{
+	    last;
+	}
 	
     }
-    $self->hdrtable(\%data);
+    my $newheader = Telemetry::BinTable::Header->new(\%data);
+    $self->hdrtable($newheader);
     $self->order(\@order);
 }
 
@@ -144,6 +184,23 @@ use PDL::NiceSlice;
 
 our @ISA =  qw( Telemetry::BinTable );
 
+# Set some global vars with directory locations
+
+#use Grabenv qw( grabenv );
+
+my $SKA = $ENV{SKA} || '/proj/sot/ska';
+my $template_file = "${SKA}/data/perigee_health_plots/aca8x8.fits.gz";
+
+sub define_template{
+
+    my $new_template = shift;
+    if( -e $new_template ){
+	$template_file = $new_template;
+    }
+    else{
+	croak(__PACKAGE__ . ": Template file $new_template does not exist");
+    }
+}
 
 sub process{
     my $self = shift;
@@ -155,7 +212,7 @@ sub process{
     $templateraw(0:($dim-1), 0:($dim-1), :) .= $imgraw;
     $self->bintable->{imgraw} = $templateraw;
     # Add any columns that would only exist in the 8x8 data
-    my $template = Telemetry::BinTable->new({ file => '/proj/gads6/jeanproj/perigee_health_plots/aca8x8.fits.gz'});
+    my $template = Telemetry::BinTable->new({ file => $template_file });
     $template->process();
     for my $key ( keys %{$template->bintable} ){
 	next if ( defined $self->bintable->{$key} );
@@ -286,8 +343,9 @@ sub combine_telem{
 
     }
 
-    $self->telem(\%telem);
-
+    my $telem = Telemetry::BinTable::Table->new(\%telem);
+    $self->telem($telem);
+    return $self;
 }
 
 

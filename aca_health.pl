@@ -3,203 +3,160 @@
 
 use warnings;
 use strict;
-
-
-
-my @columns = ('quality', 'time', 'imgraw');
-
-#my @eightbyeightcolumns = ( 'imgraw', 'quality', 'time', 'TEMPCCD', 'TEMPHOUS','TEMPPRIM','TEMPSEC','HD3TLM62','HD3TLM63','HD3TLM64','HD3TLM65','HD3TLM66','HD3TLM67','HD3TLM72','HD3TLM73','HD3TLM74','HD3TLM75','HD3TLM76','HD3TLM77');
-
-my @eightbyeightcolumns = @columns;
-
-my @ccdmcols = ('time', 'quality', 'cobsrqid' );
-#my @ccdmcols = ('time', 'quality' );
-
-#
-
-require "/proj/gads6/jeanproj/perigee_health_plots/Telemetry.pm";
+use Telemetry;
+#require "/proj/gads6/jeanproj/perigee_health_plots/Telemetry.pm";
 use Carp;
 use PDL;
-use Data::Dumper;
+use PDL::NiceSlice;
+use YAML;
+use IO::All;
+use Data::ParseTable qw( parse_table );
+use Ska::Convert qw( date2time );
 
+my $time_interval = 20;
+my $min_samples = 4;
+
+
+# Let's use a config file to define how to "build" our columns from the header 3 telemetry
+# see the config file for an explanation of its format
+#use GrabEnv qw( grabenv );
+my $SKA = $ENV{SKA} || '/proj/sot/ska';
+my $column_config_file = "${SKA}/data/perigee_health_plots/column_conversion.yaml";
+
+
+# other files
+my $pass_time_file = 'pass_times.txt';
+my $xml_out_file = 'data.xml.gz';
+
+
+my %column_conversion = YAML::LoadFile($column_config_file);
+
+
+my @captimes = io($pass_time_file)->slurp;
+my $pass_times = parse_table(\@captimes);
+my %pass_time_cs = (
+		    tstart => date2time($pass_times->[0]->{TSTART}),
+		    tstop => date2time($pass_times->[0]->{TSTOP}),
+		    );
+
+
+my @ccdmcols = ('time', 'quality', 'cobsrqid' );
 my @ccdm_file_list = glob("ccdm*gz");
 my $ccdm = Telemetry::Interval->new({ file_list => \@ccdm_file_list, columns => \@ccdmcols});
 $ccdm->combine_telem();
 
 
-my @aca0_0_list = glob("aca*_0_*gz");
-my @aca0_1_list = glob("aca*_1_*gz");
-my @aca0_2_list = glob("aca*_2_*gz");
-my @aca0_3_list = glob("aca*_3_*gz");
-my @aca0_4_list = glob("aca*_4_*gz");
-my @aca0_5_list = glob("aca*_5_*gz");
-my @aca0_6_list = glob("aca*_6_*gz");
-my @aca0_7_list = glob("aca*_7_*gz");
 
-
-
-my $aca0_0 = Telemetry::Interval::ACA0->new({ file_list => \@aca0_0_list } );
-$aca0_0->combine_telem();
-my $aca0_1 = Telemetry::Interval::ACA0->new({ file_list => \@aca0_1_list } );
-$aca0_1->combine_telem();
-my $aca0_2 = Telemetry::Interval::ACA0->new({ file_list => \@aca0_2_list } );
-$aca0_2->combine_telem();
-my $aca0_6 = Telemetry::Interval::ACA0->new({ file_list => \@aca0_6_list } );
-$aca0_6->combine_telem();
-my $aca0_7 = Telemetry::Interval::ACA0->new({ file_list => \@aca0_7_list } );
-$aca0_7->combine_telem();
-
-
-print "time ", $aca0_7->telem()->{time}->nelem(), "\n";
-print "hdr3 ", $aca0_7->telem()->{hd3tlm76}->nelem(), "\n";
-
-my $maxtimepdl = pdl( $aca0_0->telem()->{time}->max, 
-		      $aca0_1->telem()->{time}->max, 
-		      $aca0_2->telem()->{time}->max,
-		      $aca0_6->telem()->{time}->max,
-		      $aca0_7->telem()->{time}->max);
-my $maxtime =  $maxtimepdl->min ;
-my $mintimepdl = pdl( $aca0_0->telem()->{time}->min, 
-		      $aca0_1->telem()->{time}->min, 
-		      $aca0_2->telem()->{time}->min,
-		      $aca0_6->telem()->{time}->min,
-		      $aca0_7->telem()->{time}->min);
-
-my $mintime =  $mintimepdl->max ;
-
-my $time_interval = 20;
-my $min_samples = 4;
-my $n_intervals = ($maxtime - $mintime)/($time_interval);
-print "$n_intervals \n";
-my $obsid = 0;
-my $obsid_cnt = -1;
-
-my @result;
-
-use PDL::NiceSlice;
-
-for my $i ( 0 ... floor($n_intervals) ){
-#for my $i ( 0 ... 10 ){
-    my $range_start = $mintime + ($i * $time_interval);
-    my $range_end = $range_start + $time_interval;
-    my $ok_slot0 = which( ( $aca0_0->telem()->{time} >= $range_start )
-			  & ( $aca0_0->telem()->{time} < $range_end )
-			  & ( $aca0_0->telem()->{imgdim}  == 8) );
-    my $ok_slot1 = which( ( $aca0_1->telem()->{time} >= $range_start )
-			  & ( $aca0_1->telem()->{time} < $range_end )
-			  & ( $aca0_1->telem()->{imgdim} == 8 ) );
-    my $ok_slot2 = which( ( $aca0_2->telem()->{time} >= $range_start )
-			  & ( $aca0_2->telem()->{time} < $range_end )
-			  & ( $aca0_2->telem()->{imgdim} == 8 ) );
-    my $ok_slot6 = which( ( $aca0_6->telem()->{time} >= $range_start )
-			  & ( $aca0_6->telem()->{time} < $range_end )
-			  & ( $aca0_6->telem()->{imgdim} == 8 ) );
-    my $ok_slot7 = which( ( $aca0_7->telem()->{time} >= $range_start )
-			  & ( $aca0_7->telem()->{time} < $range_end )
-			  & ( $aca0_7->telem()->{imgdim} == 8 ) );
-
-#    print "$i \t", $ok_slot7, "\n";
-    
-
-    if ( ( $ok_slot0->nelem >= $min_samples )
-	 and ( $ok_slot1->nelem >= $min_samples )
-	 and ( $ok_slot2->nelem >= $min_samples )
-	 and ( $ok_slot6->nelem >= $min_samples )
-	 and ( $ok_slot7->nelem >= $min_samples )){
-	my $time = medover( $aca0_7->telem()->{time}->($ok_slot7));
-	
-	my $dac = medover( 256*( $aca0_7->telem()->{hd3tlm76}->($ok_slot7 )) 
-			   + ( $aca0_7->telem()->{hd3tlm77}->($ok_slot7)) 
-			   );
-	my $h066 = medover( $256( $aca0_0->telem()->{hd3tlm66}->($ok_slot0))
-			    + ( $aca0_0->telem()->{hd3tlm67}->($ok_slot0))
-			    );
-	my $h072 = medover( $256( $aca0_0->telem()->{hd3tlm72}->($ok_slot0))
-			    + ( $aca0_0->telem()->{hd3tlm73}->($ok_slot0))
-			    );
-	my $h074 = medover( $256( $aca0_0->telem()->{hd3tlm74}->($ok_slot0))
-			    + ( $aca0_0->telem()->{hd3tlm75}->($ok_slot0))
-			    );
-	my $h174 = medover( $256( $aca0_1->telem()->{hd3tlm74}->($ok_slot1))
-			    + ( $aca0_1->telem()->{hd3tlm75}->($ok_slot1))
-			    );
-	my $h176 = medover( $256( $aca0_1->telem()->{hd3tlm76}->($ok_slot1))
-			    + ( $aca0_1->telem()->{hd3tlm77}->($ok_slot1))
-			    );
-	my $h262 = medover( $256( $aca0_2->telem()->{hd3tlm62}->($ok_slot2))
-			    + ( $aca0_2->telem()->{hd3tlm63}->($ok_slot2))
-			    );
-	my $h264 = medover( $256( $aca0_2->telem()->{hd3tlm64}->($ok_slot2))
-			    + ( $aca0_2->telem()->{hd3tlm65}->($ok_slot2))
-			    );
-	my $h266 = medover( $256( $aca0_2->telem()->{hd3tlm66}->($ok_slot2))
-			    + ( $aca0_2->telem()->{hd3tlm67}->($ok_slot2))
-			    );
-	
-	my $h272 = medover( $256( $aca0_2->telem()->{hd3tlm72}->($ok_slot2))
-			    + ( $aca0_2->telem()->{hd3tlm73}->($ok_slot2))
-			    );
-	my $h274 = medover( $256( $aca0_2->telem()->{hd3tlm74}->($ok_slot2))
-			    + ( $aca0_2->telem()->{hd3tlm75}->($ok_slot2))
-			    );
-	my $h276 = medover( $256( $aca0_2->telem()->{hd3tlm76}->($ok_slot2))
-			    + ( $aca0_2->telem()->{hd3tlm77}->($ok_slot2))
-			    );
-	
-	my $aca_temp = medover( (1/256.)*( $aca0_7->telem()->{hd3tlm73}->($ok_slot7)) 
-				+ ( $aca0_7->telem()->{hd3tlm72}->($ok_slot7)) 
-				);
-	
-	my $ccd_temp = medover( ( 256*( $aca0_6->telem()->{hd3tlm76}->($ok_slot6 )) 
-				  + ( $aca0_6->telem()->{hd3tlm77}->($ok_slot6) ) 
-				  - 65536
-				  )
-				/ 100.
-				)
-	    ;
-
-
-	print $time, " ", $dac, " ",  $ccd_temp, " ", $aca_temp, "\n";
-
-	
-#	print $aca0_7->telem()->{time}->nelem, "\n";
-#	print $aca0_7->telem()->{hd3tlm76}->nelem, "\n";
-#	print $aca0_7->telem()->{hd3tlm77}->nelem, "\n";
-#
-#	my %curr_result;
-
-    }	
-
+my %aca0;
+for my $slot ( 0, 1, 2, 6, 7 ){
+    my @file_list = glob("aca*_${slot}_*gz");
+    my $aca_telem = Telemetry::Interval::ACA0->new({ file_list => \@file_list })->combine_telem();
+    $aca0{$slot} =  $aca_telem;
 }
 
-print Dumper @result;
-#
-#
-#
 
-#my $tstart = 233554382.20;
-#my $tstop = 233554390.40;
-#
-#my $match = which( ($aca0_2{time} >= ($tstart - 60)) & ($aca0_2{time} <= ($tstop + 20)));
-#my @match_array = list $match;
-#
-#use PDL::NiceSlice;
-#
-#for my $index (@match_array){
-#    my $img = $aca0_2{imgraw}->(0:7,0:7,$index);
-#    print $img;
-#}
-#
-#my $obsid = 0;
-#my $obsid_count = -1;
-#
-#for my $slot ( 0 ... 7 ){
-##    print "slot is $slot \n";
-#
-#
-#}
-#
+my $maxtimepdl = pdl( $pass_time_cs{tstop} );
+my $mintimepdl = pdl( $pass_time_cs{tstart} );
+for my $slot ( 0, 1, 2, 6, 7 ){
+    $maxtimepdl = $maxtimepdl->append( $aca0{$slot}->telem->{time}->max );
+    $mintimepdl = $mintimepdl->append( $aca0{$slot}->telem->{time}->min );
+}
 
 
+my $maxtime =  $maxtimepdl->min ;
+my $mintime =  $mintimepdl->max ;
+my $n_intervals = ($maxtime - $mintime)/($time_interval);
+
+
+
+
+my %result;
+
+%{$result{info}} = (
+		 sample_interval_in_secs => $time_interval,
+		 tstart => $mintime,
+		 tstop => $maxtime,
+		 min_required_samples => $min_samples,
+		 number_of_intervals => $n_intervals,
+		 );
+
+
+
+for my $i ( 0 ... floor($n_intervals) ){
+
+    my $range_start = $mintime + ($i * $time_interval);
+    my $range_end = $range_start + $time_interval;
+
+    my $ok_ccdm = which( ($ccdm->telem()->{time} >= $range_start )
+			 & ( $ccdm->telem()->{time} < $range_end ));
+    my $obsid_pdl = $ccdm->telem->{cobsrqid}->($ok_ccdm);
+
+    my %ok;
+
+    for my $slot (0, 1, 2, 6, 7){
+	$ok{$slot} = which( ( $aca0{$slot}->telem->{time} >= $range_start )
+			    & ( $aca0{$slot}->telem->{time} < $range_end )
+			    & ( $aca0{$slot}->telem->{imgdim} == 8 )
+			    );
+	
+    }
+
+    my $samples = pdl( map $ok{$_}->nelem(), (0,1,2,6,7) );
+
+    if ( $samples->min() >= $min_samples ){
+
+	my $obsid = $obsid_pdl->at(0);
+	push @{$result{obsid}}, $obsid;
+
+	my @products = keys %column_conversion;
+	
+	for my $name (@products){
+	    my $product_name = $column_conversion{$name};
+	    my $product_string = '';
+	    for my $col_i ( 1, 2 ){
+		my $temp_string = '';
+		if (defined $product_name->{"column${col_i}"}){
+		    if (defined $product_name->{"joinpre${col_i}"}){
+			$temp_string = $product_name->{"joinpre${col_i}"};
+		    }
+		    if (defined $product_name->{"op${col_i}"}){
+			$temp_string .= '( ' 
+			    . '( $aca0{' . $product_name->{"source"} .'}->telem()->{' 
+			    . $product_name->{"column${col_i}"} .'}->($ok{'
+			    . $product_name->{"source"} .'})' . ' )' 
+			    . $product_name->{"op${col_i}"} 
+			. ' )';
+		    }
+		    else{
+			$temp_string .= 
+			    '( $aca0{' . $product_name->{"source"} .'}->telem()->{' 
+			    . $product_name->{"column${col_i}"} .'}->($ok{'
+			    . $product_name->{"source"} .'})' . ' )' ;
+		    }
+		}
+		$product_string .= $temp_string;
+	    }
+	    if (defined $product_name->{"global"}){
+		$product_string = ' ( ' . $product_string . ' ) ' . $product_name->{"global"};
+	    }
+	    
+	    push @{$result{$name}}, sclr( medover( eval( $product_string ) ) );
+
+
+	}
+
+
+
+
+    }
+}
+
+use XML::Dumper;
+my $perl = \%result;
+my $dump = new XML::Dumper;
+$dump->pl2xml( $perl, $xml_out_file );
+#my $xml = $dump->pl2xml( $perl );
+#my $outfile = io($xml_out_file);
+#$outfile->print($xml);
 
 

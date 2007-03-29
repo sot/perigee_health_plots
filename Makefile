@@ -3,8 +3,9 @@ TASK = perigee_health_plots
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
-SHARE = pass_plots.pl aca_health.pro index.html startup.pro install_plots.pl
-DATA = pass_plots.cfg
+SHARE = pass_plots.pl aca_health.pro index.html startup.pro install_plots.pl aca_health.pl
+DATA = pass_plots.cfg column_conversion.yaml aca8x8.fits.gz
+LIB = Telemetry.pm
 
 radmon:
 	mkdir -p $(INSTALL)/data/arc/iFOT_events/radmon/
@@ -23,3 +24,8 @@ ifdef SHARE
 	mkdir -p $(INSTALL_SHARE)
 	rsync --times --cvs-exclude $(SHARE) $(INSTALL_SHARE)/
 endif
+ifdef LIB
+	mkdir -p $(INSTALL_PERLLIB)
+	rsync --times --cvs-exclude $(LIB) $(INSTALL_PERLLIB)/
+endif
+
