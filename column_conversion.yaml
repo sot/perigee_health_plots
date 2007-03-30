@@ -1,0 +1,125 @@
+# Defines attributes relative to their HD3TLM keywords, i.e.
+# for aca_health.pl
+#
+#--- ccd_temp
+#---
+#source: 6
+#column1: hd3tlm76
+#column2: hd3tlm77
+#op1: ' * 256 '
+#op2: ' - 65536 '
+#joinpre2: ' + '
+#global: ' / 100. '
+#
+# is used as
+# Use telemetry from image slot 6
+# ccd_temp = ( ( hd3tlm76 * 256 ) + ( hd3tlm77 - 65536 ) ) / 100.
+# 
+#
+
+
+--- dac
+---
+column1: hd3tlm76
+column2: hd3tlm77
+op1: ' * 256 '
+joinpre2: ' + '
+source: 7
+--- time
+---
+column1: time
+source: 7
+--- h066
+---
+source: 0
+column1: hd3tlm66
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm67
+--- h072
+---
+source: 0
+column1: hd3tlm72
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm73
+--- h074
+---
+source: 0
+column1: hd3tlm74
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm75
+--- h174
+---
+source: 1
+column1: hd3tlm74
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm75
+--- h176
+---
+source: 1
+column1: hd3tlm76
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm77
+--- h262
+---
+source: 2
+column1: hd3tlm62
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm63
+--- h264
+---
+source: 2
+column1: hd3tlm64
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm65
+--- h266
+---
+source: 2
+column1: hd3tlm66
+op1: ' * 256 '
+joinpre2: ' + '
+column2: hd3tlm67
+--- h272
+---
+source: 2
+column1: hd3tlm72
+column2: hd3tlm73
+joinpre2: ' + '
+op1: ' * 256 '
+--- h274
+---
+source: 2
+column1: hd3tlm74
+column2: hd3tlm75
+joinpre2: ' + '
+op1: ' * 256 '
+--- h276
+--- 
+source: 2
+column1: hd3tlm76
+column2: hd3tlm77
+joinpre2: ' + '
+op1: ' * 256 '
+--- aca_temp
+---
+source: 7
+column1: hd3tlm73
+column2: hd3tlm72
+joinpre2: ' + '
+op1: ' * (1/256.) '
+--- ccd_temp
+---
+source: 6
+column1: hd3tlm76
+column2: hd3tlm77
+op1: ' * 256 '
+op2: ' - 65536 '
+joinpre2: ' + '
+global: ' / 100. '
+
