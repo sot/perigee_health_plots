@@ -2,18 +2,136 @@
 
 use strict; 
 use warnings;
+use PGPLOT;
 use PGPLOT::Simple qw( pgs_plot );
 use XML::Dumper;
 use PDL;
 use PDL::NiceSlice;
+use Getopt::Long;
 
-# infile and outfile
-my $xml_file = 'data.xml.gz';
-my $pltname1 = 'aca_health_pgplot.ps';
+my $SKA = $ENV{SKA} || '/proj/sot/ska';
+
+my %opt = ();
+
+our %opt = ();
+
+GetOptions (\%opt,
+            'help!',
+            'dir=s',
+            'missing!',
+            'verbose|v!',
+            'delete!'
+            );
+
+usage( 1 )
+    if $opt{help};
+
+
+my $WORKING_DIR = $ENV{PWD};
+
+
+if ( defined $opt{dir}){
+    $WORKING_DIR = $opt{dir};
+
+}
+
+my $xml_data_file = "data.xml.gz";
+my $health_plot = "aca_health_pgplot.ps";
+my $legend = "legend.ps";
+my $health_plot_gif = "aca_health_pgplot.gif";
+my $legend_gif = "legend.gif";
+
+# Search for directories in $WORKING_DIR that have telemetry but don't have
+# $xml_out_file
+
+my @todo_directories;
+
+# first get a list of directories.
+my @telem_dirs = glob("${WORKING_DIR}/????:*");
+
+# step backward through them until I find one that has an $xml_out_file
+for my $dir ( reverse @telem_dirs ){
+    if (( -e "${dir}/$health_plot" ) and (-e "${dir}/$legend")){
+        last unless $opt{missing};
+    }
+    else{
+        push @todo_directories, $dir;
+    }
+}
+
+for my $dir (@todo_directories){
+    if ($opt{verbose}){
+	print "making plots for $dir \n";
+    }
+    plot_health( "${dir}/$xml_data_file", "${dir}/$health_plot", "${dir}/$legend" );
+    convert_to_gif( "${dir}/$health_plot", "${dir}/$health_plot_gif");
+    convert_to_gif( "${dir}/$legend", "${dir}/$legend_gif");
+    if (( -e "${dir}/$health_plot_gif" ) and (-e "${dir}/$legend_gif" )){
+        if ($opt{delete}){
+            unlink("${dir}/$health_plot");
+            unlink("${dir}/$legend");
+        }
+    }
+}
+
+
+
+
+##***************************************************************************
+sub usage
+##***************************************************************************
+{
+    my ( $exit ) = @_;
+
+    local $^W = 0;
+    eval 'use Pod::Text';
+    if ($@){
+        croak(__PACKAGE__ . ": !$@");
+    }
+    Pod::Text::pod2text( '-75', $0 );
+    exit($exit) if ($exit);
+}
+
+##***************************************************************************
+sub convert_to_gif{
+##***************************************************************************
+    my ( $in_ps, $out_gif) = @_;
+    system( "convert -density 100x100 $in_ps $out_gif");
+}
+
+
+
+
+##***************************************************************************
+sub plot_health{
+##***************************************************************************
+
+    my ($xml_file, $plotname, $legendname) = @_;
+
+## infile and outfile
+#my $xml_file = 'data.xml.gz';
+#my $plotname = 'aca_health_pgplot.ps';
+#my $legendname = 'legend.ps';
+#
+
+my %pg_colors = (white   => 1,
+		 red     => 2,
+		 green   => 3,
+		 blue    => 4,
+		 cyan    => 5,
+		 yellow  => 7,
+		 orange  => 8,
+		 purple  => 12,
+		 magenta => 6
+		 );
+
 
 # color choices for plot
-my @colorlist = ( 'red', 'green', 'blue', 'hot pink', 'cyan', 'sienna', 'thistle');
+my @colorlist = ( 'red', 'green', 'blue', 'magenta', 'cyan', 'orange', 'purple');
 my @columns = ( 'time', 'obsid', 'aca_temp', 'ccd_temp', 'dac');
+
+# polynomial coefficients for DAC vs TEMPDIFF plot
+my @polyfit = ( 114.474, 0.403096, 0.236348 );
 
 # read in data from XML file
 my $dump = new XML::Dumper;
@@ -45,17 +163,23 @@ my @ordered_obsid = sort {$obsid_first_idx{$a} <=> $obsid_first_idx{$b}}  keys %
 # and let's defined time t0
 my $tzero = $datapdl{time}->min;
 
+# let's define a new delta time
+$datapdl{dtime} = $datapdl{time} - $tzero;
 
+    my $plot_helper = PlotHelper->new({ ordered_obsid => \@ordered_obsid,
+					colorlist => \@colorlist,
+					obsid_idx => \%obsid_idx,
+					datapdl => \%datapdl});
+    
 
 
 my @plotarray;
-
 
 # Page Setup
 push @plotarray, ( nx => 2, ny => 2,
 		   xsize => 9,
 		   ysize => 6,
-		   device => "$pltname1/vcps",
+		   device => "$plotname/vcps",
 		   );
 
 # ACA TEMP
@@ -66,145 +190,183 @@ push @plotarray, ( panel => [1,1],
 		   );
 
 
-#my @aca_temp_plot = plot_vs_time( 'aca_temp ')
-push @plotarray, plot_vs_time( 'aca_temp' );
+#my @aca_temp_plot = $plot_helper->plot_a_vs_b( 'aca_temp ')
+push @plotarray, $plot_helper->plot_a_vs_b( 'aca_temp', 'dtime' );
 
-#my %obsidcolor;
-#
-#for my $i (0 .. $#uniqobsid){
-#    my $obsid_match_idx = which( $obsidpdl == $uniqobsid[$i] );
-#    my @match_time = $timepdl->($obsid_match_idx)->list;
-#    my @time = map { $_ - $timepdl->min } @match_time;
-#    my @aca_data = pdl( $data{aca_temp})->($obsid_match_idx)->list;
-#    my $color = $colorlist[($i % scalar(@colorlist))];
-#    $obsidcolor{$uniqobsid[$i]} = $color;
-#    my @aca_plot_array = (
-#			  'x' => [@time],
-#			  'y' => [@aca_data],
-#			  color => { symbol => $color },
-#			  plot => 'points',
-#			  );
-#    push @plotarray, @aca_plot_array;
-#}
-#
-## CCD TEMP
-#push @plotarray, ( panel => [2,1],
-#		   xtitle=>'Seconds from Radmon disable',
-#		   ytitle=>'CCD temp (C)',
-#		   lims   => [0, undef, -21, -17],
-#		   );
-#
-#
-#for my $i (0 .. $#uniqobsid){
-#    my $obsid_match_idx = which( $obsidpdl == $uniqobsid[$i] );
-#    my @match_time = $timepdl->($obsid_match_idx)->list;
-#    my @time = map { $_ - $timepdl->min } @match_time;
-#    my @plotdata = pdl( $data{ccd_temp})->($obsid_match_idx)->list;
-#    my $color = $colorlist[($i % scalar(@colorlist))];
-#    my @data_plot_array = (
-#			  'x' => [@time],
-#			  'y' => [@plotdata],
-#			  color => { symbol => $color },
-#			  plot => 'points',
-#			  );
-#    push @plotarray, @data_plot_array;
-#}
-#
-#
-#
-#my $dtemp = pdl ( map { $data{aca_temp}->[$_] - $data{ccd_temp}->[$_] }	 (0 ... scalar(@{$data{time}})-1) );
-#		  
-#my $npoints = 100;
-#
-## how much of the plot do I want with data in x
-#my $dac_xscale = .8;
-#
-#my $delta = ($dtemp->max)-($dtemp->min);
-#my $plotdelta = $delta/$dac_xscale;
-## left and right pad to get $dac_xscale of the plot to have data
-#my $pad = ($plotdelta-$delta)/2;
-#
-#my $xvals = sequence($npoints+1)*(($plotdelta)/($npoints))+(($dtemp->min)-($pad));
-#
-## predicted second order polynomial for aca-ccd vs dac
-#my @polyfit = ( 114.474, 0.403096, 0.236348 );
-#my $yvals = $polyfit[0] + $xvals*$polyfit[1] + ($xvals*$xvals)*$polyfit[2];
-#
-#
-#
-## DAC
-#push @plotarray, ( panel => [1,2],
-#		   xtitle=>'Seconds from Radmon disable',
-#		   ytitle=>'TEC DAC Control Level',
-#		   lims   => [0, undef, ($yvals->min)-10, 520],
-#		   );
-#
-#for my $i (0 .. $#uniqobsid){
-#    my $obsid_match_idx = which( $obsidpdl == $uniqobsid[$i] );
-#    my @match_time = $timepdl->($obsid_match_idx)->list;
-#    my @time = map { $_ - $timepdl->min } @match_time;
-#    my @plotdata =  pdl( $data{dac})->($obsid_match_idx)->list;
-#    my $color = $colorlist[($i % scalar(@colorlist))];
-#    my @data_plot_array = (
-#			   'x' => [ @time ],
-#			   'y' => [ @plotdata ],
-#			   color => { symbol => $color },
-#			   plot => 'points',
-#			   );
-#    push @plotarray, @data_plot_array;
-#}
-#
-#push @plotarray, ( panel => [2,2],
-#		   xtitle=>'ACA temp - CCD temp (C)',
-#		   ytitle=>'TEC DAC Control Level',
-#		   lims => [ ($dtemp->min)-($pad), ($dtemp->max)+($pad), ($yvals->min)-10, 520],
-#		   );
-#
-#
-#for my $i (0 .. $#uniqobsid){
-#    my $obsid_match_idx = which( $obsidpdl == $uniqobsid[$i] );
-#    my @match_dtemp = $dtemp->($obsid_match_idx)->list;
-#    my @plotdata =  pdl( $data{dac})->($obsid_match_idx)->list;
-#    my $color = $colorlist[($i % scalar(@colorlist))];
-#    my @data_plot_array = (
-#			   'x' => [ @match_dtemp ],
-#			   'y' => [ @plotdata ],
-#			   color => { symbol => $color },
-#			   plot => 'points',
-#			   );
-#    push @plotarray, @data_plot_array;
-#}
-#
-#push @plotarray, (
-#		  # 511 Line
-#		  'x' => [ ($dtemp->min)-10, ($dtemp->max)+10],
-#		  'y' => [ 511, 511],
-#		  color => { line => 'red' },
-#		  plot => 'line',
-#		  # Prediction
-#		  'x' => [ $xvals->list ],
-#		  'y' => [ $yvals->list ],
-#		  color => { line => 'black' },
-#		  options => {linestyle => 'dashed' },
-#		  plot => 'line',
-#		  );
-#
-#
-#
-#
-#pgs_plot( @plotarray );
 
-sub plot_vs_time{
-    my $column = shift;
+# CCD TEMP
+push @plotarray, ( panel => [2,1],
+		   xtitle=>'Seconds from Radmon disable',
+		   ytitle=>'CCD temp (C)',
+		   lims   => [0, undef, -21, -17],
+		   );
+
+
+push @plotarray, $plot_helper->plot_a_vs_b( 'ccd_temp', 'dtime' );
+
+
+# I want both DAC plots to have the same scale, so I'll need to figure out the range and such
+
+$datapdl{dtemp} = $datapdl{aca_temp} - $datapdl{ccd_temp};
+		  
+my $npoints = 100;
+
+# how much of the plot do I want with data in x
+my $dac_xscale = .8;
+
+my $data_xrange = ($datapdl{dtemp}->max)-($datapdl{dtemp}->min);
+my $plot_xrange = $data_xrange/$dac_xscale;
+# left and right pad to get $dac_xscale of the plot to have data
+my $pad = ($plot_xrange-$data_xrange)/2;
+
+# dummy x points for the fit line
+my $xvals = sequence($npoints+1)*(($plot_xrange)/($npoints))+(($datapdl{dtemp}->min)-($pad));
+
+# predicted second order polynomial for aca-ccd vs dac
+my $yvals = $polyfit[0] + $xvals*$polyfit[1] + ($xvals*$xvals)*$polyfit[2];
+
+# make an object to store
+
+
+# DAC
+push @plotarray, ( panel => [1,2],
+		   xtitle=>'Seconds from Radmon disable',
+		   ytitle=>'TEC DAC Control Level',
+		   lims   => [0, undef, ($yvals->min)-10, 520],
+		   );
+
+push @plotarray, $plot_helper->plot_a_vs_b( 'dac', 'dtime' );
+
+
+# DAC vs Delta Temp
+push @plotarray, ( panel => [2,2],
+		   xtitle=>'ACA temp - CCD temp (C)',
+		   ytitle=>'TEC DAC Control Level',
+		   lims => [ ($datapdl{dtemp}->min)-($pad), ($datapdl{dtemp}->max)+($pad), ($yvals->min)-10, 520],
+		   );
+
+
+
+push @plotarray, $plot_helper->plot_a_vs_b( 'dac', 'dtemp' );
+
+
+
+push @plotarray, (
+		  # 511 Line
+		  'x' => [ ($datapdl{dtemp}->min)-10, ($datapdl{dtemp}->max)+10],
+		  'y' => [ 511, 511],
+		  color => { line => 'red' },
+		  plot => 'line',
+		  # Prediction
+		  'x' => [ $xvals->list ],
+		  'y' => [ $yvals->list ],
+		  color => { line => 'black' },
+		  options => {linestyle => 'dashed' },
+		  plot => 'line',
+		  );
+
+
+
+pgs_plot( @plotarray );
+
+
+#    my $master_width = 6 + $sub_width;
+my $master_width = 10;
+my $aspect = .5;
+
+#my $obsid = $self->{obsid};
+
+#    print "sub width = $sub_width, sub height = $sub_height \n";
+#   print "width = $master_width, aspect = $aspect \n";
+
+# Setup pgplot
+my $dev = "$legendname/vcps"; # unless defined $dev;  # "?" will prompt for device
+pgbegin(0,$dev,2,1);  # Open plot device
+pgpap($master_width, $aspect );
+pgscf(1);             # Set character font
+pgscr(0, 1.0, 1.0, 1.0);
+pgscr(1, 0.0, 0.0, 0.0);
+#    pgslw(2);
+
+# Define data limits and plot axes
+pgpage();
+pgsch(2);
+pgvsiz (0.5, 4.5, 0.5, 4.5);
+pgswin (0,3000,0,3000);
+#pgbox  ('BCNST', 0.0, 0, 'BCNST', 0.0, 0);
+
+
+for my $i (0 ... $#ordered_obsid){
+    my $obsid = $ordered_obsid[$i];
+    my $color = $colorlist[($i % scalar(@colorlist))];
+#    print "obsid: $obsid is color: $color \n";
+    pgsci( $pg_colors{'white'} );
+    pgtext( 10, 2800-($i*200), "$obsid" );
+    pgsci( $pg_colors{$color} );
+    pgcirc( 800, 2850-($i*200), 50);
+}
+
+
+
+
+pgend;
+
+}
+
+
+package PlotHelper;
+
+use strict;
+use warnings;
+use Class::MakeMethods::Standard::Hash(
+                                        scalar => [ qw(
+						       ordered_obsid
+						       colorlist
+						       obsid_idx
+						       datapdl
+                                                       )
+                                                    ],
+				       );
+use CFITSIO::Simple;
+
+
+sub new{
+
+    my $class = shift;
+    my $self = {};
+    bless $self, $class;
+
+    my $arg_in = shift;
+    $self->ordered_obsid($arg_in->{ordered_obsid});
+    $self->colorlist($arg_in->{colorlist});
+    $self->obsid_idx($arg_in->{obsid_idx});
+    $self->datapdl($arg_in->{datapdl});
+
+    return $self;
+
+}
+
+
+sub plot_a_vs_b{
+    my $self = shift;
+    my $a = shift;
+    my $b = shift;
+
+
+    my @ordered_obsid = @{$self->ordered_obsid()};
+    my @colorlist = @{$self->colorlist()};
+    my %obsid_idx = %{$self->obsid_idx()};
+    my %datapdl = %{$self->datapdl()};
+
     my @data_plot_array;
     
     for my $i (0 .. $#ordered_obsid){
 	my $obsid = $ordered_obsid[$i];
-	my @time = map { $_ - $tzero } @{$datapdl{time}->($obsid_idx{$obsid})->list};
+	my @xvalue = $datapdl{$b}->($obsid_idx{$obsid})->list;
 	my $color = $colorlist[($i % scalar(@colorlist))];
-	push @data_plot_array = (
-				 'x' => [@time],
-				 'y' => $datapdl{$column}->($obsid_idx{$obsid}),
+	push @data_plot_array , (
+				 'x' => [@xvalue],
+				 'y' => $datapdl{$a}->($obsid_idx{$obsid}),
 				 color => { symbol => $color },
 				 plot => 'points',
 				 );
@@ -213,3 +375,5 @@ sub plot_vs_time{
     return @data_plot_array;
 
 }
+
+1;

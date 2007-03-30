@@ -32,8 +32,8 @@ my $SHARE = "$ENV{SKA}/share/${TASK}";
 my $WEB_DIR = "${SKA}/www/ASPECT/${TASK}/";
 my $WORKING_DIR = $ENV{PWD};
 
-my $gif_outfile = 'aca_health.gif';
-
+my $gif_outfile1 = 'aca_health_pgplot.gif';
+my $gif_outfile2 = 'legend.gif';
 
 if ( defined $opt{dir}){
     $WORKING_DIR = $opt{dir};
@@ -59,11 +59,12 @@ for my $pass ( @passes ){
     push @pass_tstart, $tstart;
 
     # Copy the files to the web area
-    if ( -e "${WORKING_DIR}/$tstart/$gif_outfile" ){
+    if ( -e "${WORKING_DIR}/$tstart/$gif_outfile1" ){
 	
 	mkpath("$WEB_DIR/$tstart");
 
-	copy( "${WORKING_DIR}/$tstart/$gif_outfile", "$WEB_DIR/$tstart/$gif_outfile");
+	copy( "${WORKING_DIR}/$tstart/$gif_outfile1", "$WEB_DIR/$tstart/$gif_outfile1");
+	copy( "${WORKING_DIR}/$tstart/$gif_outfile2", "$WEB_DIR/$tstart/$gif_outfile2");
 
 	copy( "$SHARE/index.html", "$WEB_DIR/$tstart/index.html");
 

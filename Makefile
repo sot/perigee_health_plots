@@ -3,7 +3,7 @@ TASK = perigee_health_plots
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
-SHARE = pass_plots.pl aca_health.pro index.html startup.pro install_plots.pl aca_health.pl
+SHARE = index.html get_perigee_telem.pl perigee_telem_parse.pl plot_health.pl install_plots.pl 
 DATA = pass_plots.cfg column_conversion.yaml aca8x8.fits.gz
 LIB = Telemetry.pm
 
