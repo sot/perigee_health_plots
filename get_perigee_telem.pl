@@ -3,11 +3,11 @@
 use strict;
 use warnings;
 
-use Time::Local 'timelocal_nocheck';
+#use Time::Local 'timelocal_nocheck';
 use Time::CTime;
 use IO::All;
 #use POSIX qw(tmpnam);
-use Getopt::Long;
+#use Getopt::Long;
 use Data::ParseTable qw( parse_table );
 #use Ska::Run;
 use Carp;
@@ -17,6 +17,8 @@ use File::Glob;
 use Ska::Convert qw(date2time);
 use File::Copy;
 use Data::Dumper;
+use YAML;
+
 
 # I stuck these in an eval section later... we only need to load them if we
 # have to grab data
@@ -30,6 +32,7 @@ our %opt = ();
 
 GetOptions (\%opt,
 	    'help!',
+	    'config=s',
 	    'dir=s',
 	   );
 
@@ -42,18 +45,41 @@ my $SKA = $ENV{SKA} || '/proj/sot/ska';
 my $TASK = 'perigee_health_plots';
 my $SHARE = "$ENV{SKA}/share/${TASK}";
 
-my $WORKING_DIR = $ENV{PWD};
-
-if ( defined $opt{dir}){
-    $WORKING_DIR = $opt{dir};
-    
+my %config;
+if ( defined $opt{config}){
+    %config = YAML::LoadFile( $opt{config} );
+}
+else{
+    %config = YAML::LoadFile( "${SHARE}/get_perigee_telem.yaml" );
 }
 
-my $RADMON_DIR = "${SKA}/data/arc/iFOT_events/radmon/";
+my $WORKING_DIR = $ENV{PWD};
+if ( defined $opt{dir} or defined $config{working_dir} ){
+ 
+    if (defined $opt{dir}){
+	$WORKING_DIR = $opt{dir};
+    }
+    else{
+	$WORKING_DIR = $config{working_dir};
+    }
+
+}
+
+
+my $RADMON_DIR;
+if (defined $config{radmon_dir} ){
+    $RADMON_DIR = $config{radmon_dir};
+}
+else{
+    $RADMON_DIR = "${SKA}/data/arc/iFOT_events/radmon/";
+}
+
+my $pass_time_file = $config{pass_time_file};
+
 my @radmon_files = glob("$RADMON_DIR/*");
 
-my $ps_outfile = 'aca_health_perigee.ps';
-my $gif_outfile = 'aca_health.gif';
+#my $ps_outfile = 'aca_health_perigee.ps';
+#my $gif_outfile = 'aca_health.gif';
 
 
 
@@ -65,7 +91,6 @@ my $now = sprintf ("%04d:%03d:%02d:%02d:%06.3f", $year+1900, $yday+1, $hour, $mi
 
 my %passes;
  
-
 
 for my $radmon_file (reverse(@radmon_files)){
 
@@ -100,7 +125,7 @@ for my $pass_start (keys %passes){
     my $tstop = date2time($pass{tstop});
 
     # skip retrieve if directory already exists
-    if ( -e "${WORKING_DIR}/$pass{tstart}/$gif_outfile"){
+    if ( -e "${WORKING_DIR}/$pass{tstart}/$pass_time_file"){
 	print "Skipping $pass{tstart}; already exists \n";
 	next;
     }
@@ -120,7 +145,7 @@ for my $pass_start (keys %passes){
     }
 
     print "mkdir ${WORKING_DIR}/$pass{tstart} \n";
-    mkpath("${WORKING_DIR}/$pass{tstart}");
+    mkpath("${WORKING_DIR}/$pass{tstart}", 0, 775);
 
     # Retrieve the telemetry needed to run the idl to make the plots
 
@@ -157,7 +182,7 @@ for my $pass_start (keys %passes){
     }
     else{
 	# put out a little text file with the tstart and stop time of the pass
-	my $notes = io("${WORKING_DIR}/$pass{tstart}/pass_times.txt");
+	my $notes = io("${WORKING_DIR}/$pass{tstart}/$pass_time_file");
 	$notes->print("TSTART\tTSTOP\n");
 	$notes->print("$pass{tstart}\t$pass{tstop}\n");
     }

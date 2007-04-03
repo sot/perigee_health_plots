@@ -14,14 +14,14 @@ use Ska::Convert qw( date2time );
 use XML::Dumper;
 
 
-my $SKA = $ENV{SKA} || '/proj/sot/ska';
 
 my %opt = ();
 
-our %opt = ();
+#our %opt = ();
 
 GetOptions (\%opt,
             'help!',
+	    'config=s',
             'dir=s',
 	    'missing!',
 	    'verbose|v!',
@@ -31,16 +31,41 @@ GetOptions (\%opt,
 usage( 1 )
     if $opt{help};
 
+# Set some global vars with directory locations
+my $SKA = $ENV{SKA} || '/proj/sot/ska';
+my $TASK = 'perigee_health_plots';
+my $SHARE = "$ENV{SKA}/share/${TASK}";
+
+my %config;
+if ( defined $opt{config}){
+    %config = YAML::LoadFile( $opt{config} );
+}
+else{
+    %config = YAML::LoadFile( "${SHARE}/perigee_telem_parse.yaml" );
+}
 
 my $WORKING_DIR = $ENV{PWD};
+if ( defined $opt{dir} or defined $config{working_dir} ){
 
-
-if ( defined $opt{dir}){
-    $WORKING_DIR = $opt{dir};
+    if (defined $opt{dir}){
+        $WORKING_DIR = $opt{dir};
+    }
+    else{
+        $WORKING_DIR = $config{working_dir};
+    }
 
 }
 
-my $xml_out_file = "data.xml.gz";
+
+
+my $xml_out_file;
+if (defined $config{xml_out_file}){
+    $xml_out_file = $config{xml_out_file};
+}
+else{
+    $xml_out_file = "data.xml.gz";
+}
+
 # Search for directories in $WORKING_DIR that have telemetry but don't have 
 # $xml_out_file
 
@@ -64,7 +89,14 @@ for my $dir (@todo_directories){
     if ($opt{verbose}){
 	print "parsing telemetry for $dir \n";
     }
-    perigee_parse( $dir );
+    perigee_parse({ dir => $dir,
+		    ska => $SKA,
+		    time_interval => $config{time_interval},
+		    min_samples => $config{min_samples},
+		    column_config  => $config{column_config},
+		    pass_time_file => $config{pass_time_file},
+		    xml_out_file => $xml_out_file,
+		});
     if ( -e "${dir}/$xml_out_file" ){
 	if ($opt{delete}){
 	    unlink("${dir}/acaf*fits.gz");
@@ -96,21 +128,31 @@ sub usage
 sub perigee_parse{
 ##***************************************************************************
 
-    my $DIR = shift;
-    
-    my $time_interval = 20;
-    my $min_samples = 4;
+    my $args = shift;
+
+    use Data::Dumper;
+    print Dumper $args;
+
+    my $DIR = $args->{dir};
+    my $time_interval = $args->{time_interval};
+    my $min_samples = $args->{min_samples};
+
     
     
 # Let's use a config file to define how to "build" our columns from the header 3 telemetry
 # see the config file for an explanation of its format
-    my $SKA = $ENV{SKA} || '/proj/sot/ska';
-    my $column_config_file = "${SKA}/data/perigee_health_plots/column_conversion.yaml";
-    
+    my $SKA = $args->{SKA};
+#    my $SKA = $ENV{SKA} || '/proj/sot/ska';
+#    my $column_config_file = "${SKA}/data/perigee_health_plots/column_conversion.yaml";
+    my $column_config_file = $args->{column_config};
+   
 # other files
-    my $pass_time_file = "${DIR}/pass_times.txt";
-    my $xml_out_file = "${DIR}/data.xml.gz";
+#    my $pass_time_file = "${DIR}/pass_times.txt";
+    my $pass_time_file = "${DIR}/$args->{pass_time_file}";
+    my $xml_out_file = "${DIR}/$args->{xml_out_file}";
+#    my $xml_out_file = "${DIR}/data.xml.gz";
     
+    print "column config file is $column_config_file \n";
     my %column_conversion = YAML::LoadFile($column_config_file);
 
 
@@ -226,7 +268,7 @@ for my $i ( 0 ... floor($n_intervals) ){
 		$product_string = ' ( ' . $product_string . ' ) ' . $product_name->{"global"};
 	    }
 	    
-	    push @{$result{$name}}, sclr( medover( eval( $product_string ) ) );
+	    push @{$result{$name}}, list( eval( $product_string ));
 
 
 	}
