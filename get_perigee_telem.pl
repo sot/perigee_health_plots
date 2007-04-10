@@ -90,7 +90,7 @@ my $now = sprintf ("%04d:%03d:%02d:%02d:%06.3f", $year+1900, $yday+1, $hour, $mi
 
 
 my %passes;
- 
+
 
 for my $radmon_file (reverse(@radmon_files)){
 
@@ -135,7 +135,7 @@ for my $pass_start (keys %passes){
     if ($@){
 	croak(__PACKAGE__ .": !$@");
     }
-    eval 'use Ska::Process qw/ get_archive_files /';
+    eval 'use Ska::Process ';
     if ($@){
 	croak(__PACKAGE__ . ": !$@");
     }
@@ -145,29 +145,32 @@ for my $pass_start (keys %passes){
     }
 
     print "mkdir ${WORKING_DIR}/$pass{tstart} \n";
-    mkpath("${WORKING_DIR}/$pass{tstart}", 0, 775);
+    mkpath("${WORKING_DIR}/$pass{tstart}");
 
     # Retrieve the telemetry needed to run the idl to make the plots
 
     my (@obsfiles1, @obsfiles2);
     eval{
-	@obsfiles1 = get_archive_files(guestuser => 1,
+	@obsfiles1 = Ska::Process::get_archive_files(guestuser => 1,
 				       tstart    => $tstart,
 				       tstop     => $tstop, 
 				       prod      => "aca0[*.fits]",
 				       file_glob => "*.fits*",
 				       dir       => $WORKING_DIR . "/$pass{tstart}/",
 				       loud      => 0,
+				       timeout => 1000,
 				       );
 
-	@obsfiles2 = get_archive_files(guestuser => 1,
+	@obsfiles2 = Ska::Process::get_archive_files(guestuser => 1,
 				       tstart    => $tstart,
 				       tstop     => $tstop,
 				       prod => "ccdm0[*_10_*]",
-                                      file_glob => "*_10_*",
+				       file_glob => "*_10_*",
 				       dir       => $WORKING_DIR . "/$pass{tstart}/",
 				       loud      => 0,
+				       timeout => 1000,
 				       );
+	
     };
     if ($@){
 	croak("$@");
@@ -181,10 +184,17 @@ for my $pass_start (keys %passes){
 	next;
     }
     else{
+
 	# put out a little text file with the tstart and stop time of the pass
 	my $notes = io("${WORKING_DIR}/$pass{tstart}/$pass_time_file");
 	$notes->print("TSTART\tTSTOP\n");
 	$notes->print("$pass{tstart}\t$pass{tstop}\n");
+
+	# enforce file permissions
+#	chmod 0775, @obsfiles1;
+#	chmod 0775, @obsfiles2;
+#	chmod 0775, [ $notes ];
+
     }
 
 
