@@ -3,12 +3,13 @@
 use strict; 
 use warnings;
 use PGPLOT;
-use PGPLOT::Simple qw( pgs_plot );
+
 use XML::Dumper;
 use PDL;
 use PDL::NiceSlice;
 use Getopt::Long;
 use YAML;
+use Carp;
 
 
 my %opt = ();
@@ -49,24 +50,24 @@ else{
 
 
 my $WORKING_DIR = $ENV{PWD};
-if ( defined $opt{dir} or defined $config{working_dir} ){
+if ( defined $opt{dir} or defined $config{general}->{working_dir} ){
 
     if (defined $opt{dir}){
         $WORKING_DIR = $opt{dir};
     }
     else{
-        $WORKING_DIR = $config{working_dir};
+        $WORKING_DIR = $config{general}->{working_dir};
     }
 
 }
-$config{working_dir} = $WORKING_DIR;
+$config{general}->{working_dir} = $WORKING_DIR;
 
 
-my $xml_data_file = $config{xml_data_file};
-my $health_plot = "$config{health_plot}.ps";
-my $health_plot_gif = "$config{health_plot}.gif";
-my $legend = "$config{legend_plot}.ps";
-my $legend_gif = "$config{legend_plot}.gif";
+my $xml_data_file = $config{general}->{xml_data_file};
+#my $health_plot = "$config{health_plot}.ps";
+#my $health_plot_gif = "$config{health_plot}.gif";
+#my $legend = "$config{legend_plot}.ps";
+#my $legend_gif = "$config{legend_plot}.gif";
 
 
 # Search for directories in $WORKING_DIR that have telemetry but don't have
@@ -79,17 +80,15 @@ my @telem_dirs = glob("${WORKING_DIR}/????:*");
 
 # step backward through them until I find one that has an $xml_out_file
 for my $dir ( reverse @telem_dirs ){
-    if (( -e "${dir}/$health_plot" ) and (-e "${dir}/$legend")){
-        last unless $opt{missing};
-    }
-    else{
+#    if (( -e "${dir}/$health_plot" ) and (-e "${dir}/$legend")){
+#        last unless $opt{missing};
+#    }
+#    else{
         push @todo_directories, $dir;
-    }
+#    }
 }
 
-my @dir = @todo_directories[0 ... 7];
-use Data::Dumper;
-print Dumper @dir;
+my @dir = @todo_directories[0 ... 1];
 
 plot_health( \@dir, \%config );
 
@@ -158,58 +157,23 @@ sub convert_to_gif{
 sub plot_health{
 ##***************************************************************************
 
-#    my ($xml_file, $plotname, $legendname) = @_;
     my $dirlist = shift;
     my $config = shift;
 
+    my @columns = @{$config->{general}->{data_columns}};
 
-    my $plotname = "$config->{health_plot}.ps";
-    my $legendname = "$config->{legend_plot}.ps";
-
-    if ( scalar(@{$dirlist}) == 1){
-	$plotname = "$dirlist->[0]/$config->{health_plot}.ps";
-	$legendname = "$dirlist->[0]/$config->{legend_plot}.ps";
-    }
-
-
-
-
-## infile and outfile
-#my $xml_file = 'data.xml.gz';
-#my $plotname = 'aca_health_pgplot.ps';
-#my $legendname = 'legend.ps';
-
-my %pg_colors = (black   => 1,
-		 red     => 2,
-		 green   => 3,
-		 blue    => 4,
-		 cyan    => 5,
-		 yellow  => 7,
-		 orange  => 8,
-		 purple  => 12,
-		 magenta => 6
-		 );
-
-
-# color choices for plot
-my @colorlist = ( 'red', 'green', 'blue', 'magenta', 'cyan', 'orange', 'purple');
-my @columns = ( 'time', 'obsid', 'aca_temp', 'ccd_temp', 'dac');
-
-# polynomial coefficients for DAC vs TEMPDIFF plot
-my @polyfit = @{$config->{polyfit}};
 
     my @data_array;
 
     for my $dir (@{$dirlist}){
-
+	print "dir is $dir \n";
 	
-	my $xml_file = "${dir}/$config->{xml_data_file}";
+	my $xml_file = "${dir}/$config->{general}->{xml_data_file}";
 
 # read in data from XML file
 	my $dump = new XML::Dumper;
 	my $xml = $dump->xml2pl( $xml_file );
-#    use Data::Dumper;
-#    print Dumper $xml;
+
 	my %data = %{$xml->{telem}};
 	my %info = %{$xml->{info}};
 
@@ -217,63 +181,23 @@ my @polyfit = @{$config->{polyfit}};
 	my %datapdl;
 	for my $column ( @columns ){
 	    $datapdl{$column} = pdl( @{$data{$column}} );
-#    print "column $column has ", $datapdl{$column}->nelem, " elements \n";
 	}
-
-#    print "keys ", keys(%datapdl), "\n";
-#    print "ref ", ref($datapdl{obsid}), "\n";
-
-#    use Data::Dumper;
-#    print Dumper $info{bad_points};
 
 # exclude marked bad points
 	eval{
 	    if( defined $info{bad_points} ){
-		for my $column (keys %{$info{bad_points}}){
-#	    use Data::Dumper;
-#	    print Dumper $info{bad_points};
-		    next unless defined $datapdl{$column};
-		    my $not_ok = pdl( $info{bad_points}->{$column} );
-		    my $dummy = ones($datapdl{$column});
-		    $dummy->($not_ok) .= 0;
-		    my $ok = which( $dummy == 1 );
-#	    print "ok elements ", $ok->nelem, "\n";
-		    for my $origcolumn (@columns){
-			eval{
-			    my $newpdl = $datapdl{$origcolumn}->($ok);
-#		    print "newpdl is ", $newpdl->nelem, "\n";
-			    delete $datapdl{$origcolumn};
-			    $datapdl{$origcolumn} = $newpdl;
-#		    print "$origcolumn has ", $newpdl->nelem, "\n";
-			    
-#		    print "new assign ", ref($datapdl{$origcolumn}), "\n";
-			};
-			if ($@){
-			    use Carp;
-			    croak("reducing column $origcolumn failed $@");
-			}
-		    }
-		}
+		%datapdl = clean_bad_points( $info{bad_points}, \%datapdl);
 	    }
 	};
 	if ($@){
-	    use Carp;
 	    croak("$@");
 	}
-	
 
-
-#    print Dumper $data{'obsid'};
-
+    
 #let's figure out how many obsids are present
-	my $obsidpdl = $datapdl{obsid};
-#    print "obsid pdl now has ", $obsidpdl->nelem, " elements\n";
-	
-	my $uniqpdl = $obsidpdl->uniq;
-	my @uniqobsid = $uniqpdl->list;
-	
+	my @uniqobsid = $datapdl{obsid}->uniq->list;
 
-# and let's store the index slices for each obsid
+	# and let's store the index slices for each obsid
 # and store the number of the slice of the first instance of the obsid (for sorting)
 	my %obsid_idx;
 	my %obsid_first_idx;
@@ -284,213 +208,176 @@ my @polyfit = @{$config->{polyfit}};
 	    $obsid_first_idx{$obsid} = $obsid_match_idx->min;
 	    
 	}
-
+	
 # and let's create an ordered list of the obsids
 	my @ordered_obsid = sort {$obsid_first_idx{$a} <=> $obsid_first_idx{$b}}  keys %obsid_first_idx;
-
-
+	
 # and let's defined time t0
 	my $tzero = $datapdl{time}->min;
-
+	
 # let's define a new delta time
 	$datapdl{dtime} = $datapdl{time} - $tzero;
-
+	
 #    print $datapdl{dtime}->(10);
 	$datapdl{dtemp} = $datapdl{aca_temp} - $datapdl{ccd_temp};
 	
-
 	my %dir_data = (
+			dirname => $dir,
 			pdl => \%datapdl,
 			ordered_obsid => \@ordered_obsid,
 			obsid_idx => \%obsid_idx,
-			colorlist => \@colorlist,
 			);
+	
 
 	push @data_array, \%dir_data;
     }
 
 
-    my @plotcolumns = ( 'dac', 'aca_temp', 'ccd_temp', 'dtime', 'dtemp', 'time');
+
+
+#
+#    use Data::Dumper;
+#    print Dumper %colranges;
+#	    
+#       
+#
+#    
+#    my @plotarray;
+#
+## Page Setup
+#
+#
+    if ($config->{general}->{dir_mode} eq 'single'){
+	
+	for my $dir (@data_array){
+	    
+	    my %colranges = find_pdl_ranges( [$dir]);
+	    
+	    my $plot_helper = PlotHelper->new({ config => $config,
+						data_array => [$dir],
+						ranges => \%colranges,
+					    });
+	    
+	    $plot_helper->plot( 'aca_temp' );
+	    
+	    $plot_helper->plot( 'ccd_temp' );
+	    
+	    $plot_helper->plot( 'dac' );
+	    
+	    $plot_helper->plot( 'dac_vs_dtemp' );
+
+	    $plot_helper->legend();
+	}
+	
+    }
+    else{
+	
+	my %colranges = find_pdl_ranges( \@data_array );
+	
+	my $plot_helper = PlotHelper->new({ config => $config,
+					    data_array => \@data_array,
+					    ranges => \%colranges,
+					    });
+	
+	$plot_helper->plot( 'aca_temp' );
+	
+	$plot_helper->plot( 'ccd_temp' );
+	
+	$plot_helper->plot( 'dac' );
+	
+	$plot_helper->plot( 'dac_vs_dtemp' );
+	
+    }	
+    
+
+}
+
+sub find_pdl_ranges{
+
+    my $data_ref = shift;
+
+    # they should all have the same columns
+    my @columnlist = keys %{$data_ref->[0]->{pdl}};
 
     my %colranges;
     
-    for my $column (@plotcolumns){
+    for my $column (@columnlist){
+	
+	my ($overall_min, $overall_max);
+#	my ($mindir, $maxdir);
+	for my $dir_data (@{$data_ref}){
+	    
 
-	my ($min, $max);
-	my ($mindir, $maxdir);
-	for my $dir_data (@data_array){
-	    #print keys(%{$dir_data});
-	    my $dir_max = $dir_data->{pdl}->{$column}->max;
-
-	    my $dir_min = $dir_data->{pdl}->{$column}->min;
-
-	    if (not defined $min){
-		$min = $dir_min;
+	    if (not defined $dir_data->{pdl}->{$column}){
+		print "column  $column not defined \n";
+	    }
+	    my ($mean,$rms,$median,$min,$max) = $dir_data->{pdl}->{$column}->stats;
+	
+	    if (not defined $overall_min){
+		$overall_min = $min;
 		
 	    }
 	    else{ 
-		if ($dir_min < $min){
-		    $min = $dir_min;
+		if ($min < $overall_min){
+		    $overall_min = $min;
 		}
 	    }
-	    if (not defined $max){
-		$max = $dir_max;
+	    if (not defined $overall_max){
+		$overall_max = $max;
 	    }
 	    else{ 
-		if ($dir_max > $max){
-		    $max = $dir_max;
+		if ($max > $overall_max){
+		    $overall_max = $max;
 		}
 	    }
 	}
+	
 	my %range = (
-		     min => $min,
-		     max => $max,
+		     min => $overall_min,
+		     max => $overall_max,
 		     );
-	    
+	
 	$colranges{$column} = \%range;
-	    
+	
 
     }
-
-    use Data::Dumper;
-    print Dumper %colranges;
-	    
-       
-
     
-    my @plotarray;
-
-# Page Setup
-
-
-    my $plot_helper = PlotHelper->new({ config => $config,
-					data_array => \@data_array,
-					ranges => \%colranges,
-				    });
-    
-
-    if ( $opt{summary}){
-
-
-	push @plotarray, $plot_helper->plot_config_sum( 'plot11' );
-	
-	push @plotarray, $plot_helper->plot_config_sum( 'plot21' );
-	
-	push @plotarray, $plot_helper->plot_config_sum( 'plot12' );
-	
-	push @plotarray, $plot_helper->plot_config_reg( 'plot22' );
-
-    }
-    else{
-	push @plotarray, $plot_helper->plot_config_reg( 'plot11' );
-	
-	push @plotarray, $plot_helper->plot_config_reg( 'plot21' );
-	
-	push @plotarray, $plot_helper->plot_config_reg( 'plot12' );
-	
-	push @plotarray, $plot_helper->plot_config_reg( 'plot22' );
-    }
-
- 
-     my $npoints = 100;
- # 
- # # how much of the plot do I want with data in x
-     my $dac_xscale = .8;
- 
-    my $minx = $colranges{dtemp}->{min};
-    my $maxx = $colranges{dtemp}->{max};
-    my $data_xrange = $maxx - $minx;
- #    print "data range is $data_xrange \n";
-    my $plot_xrange = $data_xrange/$dac_xscale;
- # # left and right pad to get $dac_xscale of the plot to have data
-    my $pad = ($plot_xrange-$data_xrange)/2;
-    # 
- # # dummy x points for the fit line
-    my $xvals = sequence($npoints+1)*(($plot_xrange)/($npoints))+(($minx)-($pad));
-    #print $xvals->min, "\t", $xvals->max, "\n"; 
- # # predicted second order polynomial for aca-ccd vs dac
-    my $yvals = $polyfit[0] + $xvals*$polyfit[1] + ($xvals*$xvals)*$polyfit[2];
- #    print $yvals->min, "\t", $yvals->max, "\n";
-
-
-
-#    push @plotarray, plot_config( 'plot21' );
-    
-#    push @plotarray, plot_config( 'plot12' );
-    
-#    push @plotarray, plot_config( 'plot22' );
-
-
-    push @plotarray, (
- 		  # Prediction
-		      'x' => [ $xvals->list ],
-		      'y' => [ $yvals->list ],
-		      color => { line => 'black' },
-		      options => {linestyle => 'dashed' },
-		      plot => 'line',
-		      );
-#
-#    if ( ($datapdl{dac}->max > 511 )){
-#	print "red line \n";
-#	push @plotarray, (
-#			  # 511 Line
-#			  'x' => [ ($datapdl{dtemp}->min)-10, ($datapdl{dtemp}->max)+10],
-#			  'y' => [ 511, 511],
-#			  color => { line => 'red' },
-#       		  plot => 'line',
-#			  );
-#    }
-# 
-# 
-
-pgs_plot( @plotarray );
-
-
-#    my $master_width = 6 + $sub_width;
-my $master_width = 10;
-my $aspect = .5;
-
-#my $obsid = $self->{obsid};
-
-#    print "sub width = $sub_width, sub height = $sub_height \n";
-#   print "width = $master_width, aspect = $aspect \n";
-
-
-#
-## Setup pgplot
-#my $dev = "$legendname/vcps"; # unless defined $dev;  # "?" will prompt for device
-#pgbegin(0,$dev,2,1);  # Open plot device
-#pgpap($master_width, $aspect );
-#pgscf(1);             # Set character font
-#pgscr(0, 1.0, 1.0, 1.0);
-#pgscr(1, 0.0, 0.0, 0.0);
-##    pgslw(2);
-#
-## Define data limits and plot axes
-#pgpage();
-#pgsch(2);
-#pgvsiz (0.5, 4.5, 0.5, 4.5);
-#pgswin (0,3000,0,3000);
-##pgbox  ('BCNST', 0.0, 0, 'BCNST', 0.0, 0);
-#
-#
-#for my $i (0 ... $#ordered_obsid){
-#    my $obsid = $ordered_obsid[$i];
-#    my $color = $colorlist[($i % scalar(@colorlist))];
-##    print "obsid: $obsid is color: $color \n";
-#    pgsci( $pg_colors{'black'} );
-#    pgtext( 10, 2800-($i*200), "$obsid" );
-#    pgsci( $pg_colors{$color} );
-#    pgcirc( 800, 2850-($i*200), 50);
-#}
-#
-#
-#
-#
-#pgend;
-#
-#
+    return %colranges;
 }
+	
+
+
+sub clean_bad_points{
+    
+    my $bad_points = shift;
+    my $datapdl = shift;
+
+    my %newdatapdl;
+
+    for my $column (keys %{$bad_points}){
+	next unless defined $datapdl->{$column};
+	my $not_ok = pdl( $bad_points->{$column} );
+	my $dummy = ones($datapdl->{$column});
+	$dummy->($not_ok) .= 0;
+	my $ok = which( $dummy == 1 );
+	for my $origcolumn (keys %{$datapdl}){
+	    eval{
+		my $newpdl = $datapdl->{$origcolumn}->($ok);
+		delete $datapdl->{$origcolumn};
+		$newdatapdl{$origcolumn} = $newpdl;
+	    };
+	    if ($@){
+		croak("clean_bad_points $origcolumn failed $@");
+	    }
+	}
+    }
+
+    return %newdatapdl;
+}
+
+    
+
+
 
 
 package PlotHelper;
@@ -502,9 +389,17 @@ use Class::MakeMethods::Standard::Hash(
 						       config
 						       data_array
 						       ranges
-                                                       )
+						       )
                                                     ],
 				       );
+
+use PGPLOT::Simple qw( pgs_plot );
+use PDL::NiceSlice;
+use PDL;
+use PGPLOT;
+
+#my $obsid_count = 0;
+#my $pass_count = 0;
 
 sub new{
 
@@ -513,6 +408,8 @@ sub new{
     bless $self, $class;
 
     my $arg_in = shift;
+#    $obsid_count = 0;
+#    $pass_count = 0;
     $self->config($arg_in->{config});
     $self->data_array($arg_in->{data_array});
     $self->ranges($arg_in->{ranges});
@@ -523,17 +420,21 @@ sub new{
 
 
 
-sub plot_summary{
+sub make_plot_summary{
 
-    my $y = shift;
-    my $x = shift;
-    my $data_ref = shift;
-    
+    my $arg_in = shift;
+    my $y_type = $arg_in->{y_type};
+    my $x_type = $arg_in->{x_type};
+    my $data_ref = $arg_in->{data_array};
+    my @colorlist = @{$arg_in->{color_array}};
+      
     my @data_plot_array;
 
-    if ($x eq 'time'){
+    my $starttime;
+
+    if ($x_type eq 'time'){
 	for my $datadir (@{$data_ref}){
-	    my $xmin = $datadir->{pdl}->{$x}->min;
+	    my $xmin = $datadir->{pdl}->{$x_type}->min;
 	    if (not defined $starttime){
 		$starttime = $xmin;
 	    }
@@ -543,19 +444,24 @@ sub plot_summary{
 		}
 	    }
 	}
-	
     }
 
-    for my $datadir (@{$data_ref}){
+    my $pass_count = 0; # reset for each plot
 
-	my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $datadir->{pdl}->{$y}->stats;
+    for my $dir_num ( 0 ... scalar(@{$data_ref})-1 ){
+	
+	my $datadir = $data_ref->[$dir_num];
+	my $coloridx = ($dir_num + $pass_count) % scalar(@colorlist);
+	my $color = $colorlist[$coloridx];
 
-	my $xmin = $datadir->{pdl}->{$x}->min;
-	my $xmax = $datadir->{pdl}->{$x}->max;
+	my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $datadir->{pdl}->{$y_type}->stats;
 
-	if ($x eq 'time'){
-	    $xmin = $xmin - $starttime;
-	    $xmax = $xmax - $starttime;
+	my $xmin = $datadir->{pdl}->{$x_type}->min;
+	my $xmax = $datadir->{pdl}->{$x_type}->max;
+
+	if ($x_type eq 'time'){
+	    $xmin = ($xmin - $starttime)/86400; # find time difference and convert to days
+	    $xmax = ($xmax - $starttime)/86400; 
 	}
 
 	my $xmid = ($xmin+$xmax)/2;
@@ -578,7 +484,7 @@ sub plot_summary{
 	push @data_plot_array , (
 				 'x' => [@xvalue],
 				 'y' => [@yvalue],
-				 color => { symbol => 'black' },
+				 color => { line => 'black' },
 				 plot => 'line',
 				 );
 	
@@ -587,7 +493,7 @@ sub plot_summary{
 	push @data_plot_array , (
 				 'x' => [@xvalue],
 				 'y' => [@yvalue],
-				 color => { symbol => 'black' },
+				 color => { line => 'black' },
 				 plot => 'line',
 				 );
 
@@ -596,7 +502,7 @@ sub plot_summary{
 	push @data_plot_array , (
 				 'x' => [@xvalue],
 				 'y' => [@yvalue],
-				 color => { symbol => 'black' },
+				 color => { symbol => $color },
 				 plot => 'points',
 				 );
 
@@ -606,13 +512,14 @@ sub plot_summary{
 	push @data_plot_array , (
 				 'x' => [@xvalue],
 				 'y' => [@yvalue],
-				 color => { symbol => 'black' },
+				 color => { line => $color },
 				 plot => 'line',
 				 );
 
 
+    $pass_count++;
     }
-    
+
     
     
     return @data_plot_array;
@@ -620,43 +527,72 @@ sub plot_summary{
 }
 
 
-sub plot_a_vs_b{
+sub make_plot_a_vs_b{
 
-    my $a = shift;
-    my $b = shift;
-    my $data_ref = shift;
+    my $arg_in = shift;
+    my $a = $arg_in->{y_type};
+    my $b = $arg_in->{x_type};
+    my $data_ref = $arg_in->{data_array};
+    my @colorlist = @{$arg_in->{color_array}};
+    my $symbol_size = $arg_in->{point_size};
+       
 
     my @data_plot_array;
-    
-    for my $datadir (@{$data_ref}){
+
+    # use different obsid colors for the single pass case
+
+    # use different pass colors for the multi-pass case
+
+    my $colormode = 'obsid';
+
+    if (scalar(@{$data_ref}) > 1){
+	$colormode = 'pass';
+    }
+
+#    my $pass_count = 0; # reset for each plot
+#    my $obsid_count = 0; # reset for each plot
+    for my $dir_num ( 0 ... scalar(@{$data_ref})-1 ){
 	
+	my $datadir = $data_ref->[$dir_num];
         my @ordered_obsid = @{$datadir->{ordered_obsid}};
-	my @colorlist = @{$datadir->{colorlist}};
 	my %obsid_idx = %{$datadir->{obsid_idx}};
 	my %datapdl = %{$datadir->{pdl}};
-	
-	for my $i (0 .. $#ordered_obsid){
-	    my $obsid = $ordered_obsid[$i];
-#	print "obsid is $obsid \n";
+	for my $obs_num ( 0 ... $#ordered_obsid ){
+	    my $obsid = $ordered_obsid[$obs_num];
 	    next unless ( $obsid_idx{$obsid}->nelem > 0);
 	    my @xvalue = $datapdl{$b}->($obsid_idx{$obsid})->list;
-	    my $color = $colorlist[($i % scalar(@colorlist))];
+	    my $coloridx;
+	    if ($colormode eq 'obsid'){
+		$coloridx = ($obs_num) % scalar(@colorlist);
+		print "coloridx is $coloridx for $obs_num \n";
+	    }
+	    else{
+		$coloridx = ($dir_num) % scalar(@colorlist);
+	    }
+	    my $color = $colorlist[$coloridx];
 	    push @data_plot_array , (
 				     'x' => [@xvalue],
 				     'y' => $datapdl{$a}->($obsid_idx{$obsid}),
 				     color => { symbol => $color },
+				     charsize => {symbol => $symbol_size },
 				     plot => 'points',
 				     );
+
 	}
+
+#	$obsid_count += scalar(@ordered_obsid);
+#	$pass_count++;
     
     }
+
+    
     return @data_plot_array;
 
 }
 
 
 
-sub plot_config_reg{
+sub plot{
 
     my $self = shift;
     my $plot = shift;
@@ -665,24 +601,135 @@ sub plot_config_reg{
     my $data_ref = $self->data_array();
     my $colrange = $self->ranges();
 
-    my $curr_config = $config->{$plot};
+    my $curr_config = $config->{plot}->{$plot};
 
-    my @array;
+    my @pgs_array;
 
-    push @array, ( panel => $curr_config->{panel},
-		   xtitle => $curr_config->{xtitle},
-		   ytitle => $curr_config->{ytitle},
-		   );
+    my $device;
+    if ($config->{general}->{dir_mode} eq 'single'){
+	$device = $data_ref->[0]->{dirname} . "/" . $curr_config->{device};
+    }	
+    else{
+	$device = $curr_config->{device};
+    }
 
-    my @lims = @{$curr_config->{lims}};
+    print "device is $device \n";
+    
+    push @pgs_array, ( nx => 1, ny => 1,
+		       xsize => 5, ysize => 5,
+		       device => $device,
+		       );
+
+    push @pgs_array, ( xtitle => $curr_config->{xtitle},
+		       ytitle => $curr_config->{ytitle},
+		       );
+
+    
+    my @lims = tweak_limits( $curr_config, $colrange);
+
+    push @pgs_array, ( lims => \@lims );
+
     my $x_type = $curr_config->{x};
     my $y_type = $curr_config->{y};
 
+    if (defined $curr_config->{randomize_unit}){
+	my $random_unit = $curr_config->{randomize_unit};
+	print "random unit is $random_unit \n";
+	for my $data_dir (@{$data_ref}){
+	    my $y_pdl = $data_dir->{pdl}->{$y_type};
+	    my $random = random($y_pdl);
+	    my $rpdl = ($y_pdl - ($random_unit/2)) + ($random * $random_unit);
+	    $data_dir->{pdl}->{$y_type} = $rpdl;
+	}
+    }
+    
+    # adjust undefined limits if minimum x or y defined 
+
+    if ( $curr_config->{mode} eq 'summary'){
+	push @pgs_array, make_plot_summary({ y_type => $y_type,
+					     x_type => $x_type,
+					     data_array => $data_ref,
+					     color_array => $self->config()->{general}->{allowed_colors},
+					 });
+
+    }
+    else{
+
+	push @pgs_array, make_plot_a_vs_b({ y_type => $y_type, 
+					    x_type => $x_type, 
+					    data_array => $data_ref, 
+					    point_size => $curr_config->{symbol_size},
+					    color_array => $self->config()->{general}->{allowed_colors} 					
+					});
+	
+	if (defined $curr_config->{oplot}){
+	    push @pgs_array, make_oplot({ 
+		y_range => $colrange->{$y_type},
+		x_range => $colrange->{$x_type},
+		oplot => $curr_config->{oplot},
+	    });
+	}
+    }
+#    use Data::Dumper;
+#    print Dumper @pgs_array;
+    
+    print "plot is $plot \n";
+    use Data::Dumper;
+    eval{
+	pgs_plot( @pgs_array );
+    };
+    if ($@){
+	print $@, "\n";
+	print Dumper @pgs_array;
+    }
+
+}
+
+sub make_oplot{
+    my $arg_in = shift;
+    my @oplot = @{$arg_in->{oplot}};
+    my $y_range = $arg_in->{y_range};
+    my $x_range = $arg_in->{x_range};
+    
+    my @plot_array;
+    
+    for my $element (@oplot){
+	if ($element->{type} eq 'poly'){
+	    my @poly = @{$element->{poly}};
+	    my $npoints = $element->{npoints};
+	    my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
+	    my $yvals = $poly[0] + $xvals*$poly[1] + ($xvals*$xvals)*$poly[2];
+	    # Prediction
+	    push @plot_array, ('x' => [ $xvals->list ],
+			   'y' => [ $yvals->list ],
+			       color => $element->{color},
+			       options => $element->{options},
+			       plot => $element->{plot_type},
+			       );
+	    
+	}
+    }
+    
+    return  @plot_array;
+}
+
+
+
+sub tweak_limits{
+
+    my $curr_config = shift;
+    my $colrange = shift;
+
+    my $x_type = $curr_config->{x};
+    my $y_type = $curr_config->{y};
+
+    my @lims = @{$curr_config->{lims}};
+    
     if ((defined $lims[0]) 
 	and (defined $lims[1])
 	and (defined $lims[2])
 	and (defined $lims[3])){
-	push @array, ( lims => \@lims );
+	return @lims;
     }
     else{
 	if (defined $curr_config->{min_x_size}){
@@ -711,86 +758,67 @@ sub plot_config_reg{
 	    }
 	}
 	
-	push @array, ( lims => \@lims );
+	return @lims;
     }
-    
-    
-
-    push @array, plot_a_vs_b( $y_type, $x_type, $data_ref );
-
-
-    return @array;
-
 
 }
 
-
-
-sub plot_config_sum{
-
+sub legend{
     my $self = shift;
-    my $plot = shift;
-
-    my $config = $self->config();
     my $data_ref = $self->data_array();
-    my $colrange = $self->ranges();
+    my $config = $self->config();
 
-    my $curr_config = $config->{$plot};
-
-    my @array;
-
-    push @array, ( panel => $curr_config->{panel},
-		   xtitle => $curr_config->{xtitle},
-		   ytitle => $curr_config->{ytitle},
-		   );
-
-    my @lims = @{$curr_config->{lims}};
-    my $x_type = $curr_config->{x};
-    my $y_type = $curr_config->{y};
-
-    if ((defined $lims[0]) 
-	and (defined $lims[1])
-	and (defined $lims[2])
-	and (defined $lims[3])){
-	push @array, ( lims => \@lims );
-    }
-    else{
-	if (defined $curr_config->{min_x_size}){
-	    if (($colrange->{$x_type}->{max} - $colrange->{$x_type}->{min}) < $curr_config->{min_x_size}){
-		if (not defined $lims[0]){
-		    $lims[0] = ( ( ( $colrange->{$x_type}->{max} + $colrange->{$x_type}->{min} ) / 2 ) 
-				 - ( $curr_config->{min_x_size}/2 ));
-		}
-		if (not defined $lims[1]){
-		    $lims[1] = ( ( ( $colrange->{$x_type}->{max} + $colrange->{$x_type}->{min} ) / 2 ) 
-				 + ( $curr_config->{min_x_size}/2 ));
-		}
-	    }
-	    
-	}
-	if (defined $curr_config->{min_y_size}){
-	    if (($colrange->{$y_type}->{max} - $colrange->{$y_type}->{min}) < $curr_config->{min_x_size}){
-		if (not defined $lims[2]){
-		    $lims[2] = ( ( ( $colrange->{$y_type}->{max} + $colrange->{$y_type}->{min} ) / 2 ) 
-				 - ( $curr_config->{min_x_size}/2 ));
-		}
-		if (not defined $lims[3]){
-		    $lims[3] = ( ( ( $colrange->{$y_type}->{max} + $colrange->{$y_type}->{min} ) / 2 ) 
-				 + ( $curr_config->{min_x_size}/2 ));
-		}
-	    }
-	}
-
-	push @array, ( lims => \@lims );
-    }
+    my @ordered_obsid = @{$data_ref->[0]->{ordered_obsid}};
+    my @colorlist = @{$config->{general}->{allowed_colors}};
+    my %pg_colors = %{$config->{general}->{pg_colors}};
     
 
-    push @array, plot_summary( $y_type, $x_type, $data_ref );
+##    my $master_width = 6 + $sub_width;
+my $master_width = 10;
+my $aspect = .5;
+
+#
+##my $obsid = $self->{obsid};
+#
+##    print "sub width = $sub_width, sub height = $sub_height \n";
+##   print "width = $master_width, aspect = $aspect \n";
+#
+#
+##
+## Setup pgplot
+
+    my $dirname = $data_ref->[0]->{dirname};
+    my $legend_device = $config->{general}->{legend_device};
+
+    my $dev = "${dirname}/${legend_device}"; # unless defined $dev;  # "?" will prompt for device
+    pgbegin(0,$dev,2,1);  # Open plot device
+    pgpap($master_width, $aspect );
+    pgscf(1);             # Set character font
+    pgscr(0, 1.0, 1.0, 1.0);
+    pgscr(1, 0.0, 0.0, 0.0);
+###    pgslw(2);
+    
+# Define data limits and plot axes
+    pgpage();
+    pgsch(2);
+    pgvsiz (0.5, 4.5, 0.5, 4.5);
+    pgswin (0,3000,0,3000);
+#pgbox  ('BCNST', 0.0, 0, 'BCNST', 0.0, 0);
+
+    for my $i (0 ... $#ordered_obsid){
+	my $obsid = $ordered_obsid[$i];
+	my $color = $colorlist[($i % scalar(@colorlist))];
+#    print "obsid: $obsid is color: $color \n";
+	pgsci( $pg_colors{'black'} );
+	pgtext( 10, 2800-($i*200), "$obsid" );
+	pgsci( $pg_colors{$color} );
+	pgcirc( 800, 2850-($i*200), 50);
+    }
 
 
-    return @array;
 
 
+    pgend();
 }
 
 
