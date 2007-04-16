@@ -1,0 +1,29 @@
+--- working_dir
+--- /proj/gads6/aca/perigee_health_plots/
+# xml output
+--- xml_out_file
+--- data.xml.gz
+
+--- column_config
+--- /proj/sot/ska/data/perigee_health_plots/column_conversion.yaml
+
+--- pass_time_file
+--- pass_times.txt
+
+
+# time interval in seconds
+--- time_interval
+--- 20
+
+# required acceptable samples in time interval... without median
+# filtering, I think I need them all
+--- min_samples
+--- 5
+
+# temp threshold in deg C for bad data... outside this range should be marked
+#  as questionable
+--- threshold
+---
+aca_temp: 3
+ccd_temp: 3
+

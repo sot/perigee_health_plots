@@ -1,0 +1,148 @@
+# Default config file for ACA perigee health plots
+
+
+# GLOBAL OPTIONS ------------------------------------------------------
+--- general
+---
+# directory that contains perigee pass directories
+working_dir: /proj/gads6/aca/perigee_health_plots
+
+# xml input file name
+xml_data_file: data.xml.gz
+
+# pass time file ( perigee start/stop times)
+pass_time_file: pass_times.txt
+
+# column config file ( how to get dac etc from telemetry)
+column_config: /proj/sot/ska/data/perigee_health_plots/column_conversion.yaml
+
+# for the single-directory case; file name for a legend image
+legend_device: 'legend.ps/vcps'
+
+dir_mode: multi
+
+# plot dir
+plot_dir: /proj/gads6/jeanproj/perigee_health_plots/
+
+# mappings of color names to pgplot integers
+pg_colors:
+   black: 1
+   red: 2
+   green: 3
+   blue: 4
+   cyan: 5
+   yellow: 7
+   orange: 8
+   purple: 12
+   magenta: 6
+
+# array of colors used to plot obsids
+allowed_colors:
+ - red
+ - green
+ - blue
+ - magenta
+ - cyan
+ - orange
+ - purple
+
+# telemetry columns that are used/required
+data_columns:
+ - time
+ - obsid
+ - aca_temp
+ - ccd_temp
+ - dac
+
+# INDIVIDUAL PLOT-SPECIFIC OPTIONS -------------------------------------
+--- plot
+---
+
+# aca temp vs time plot
+aca_temp:
+   mode: none
+   # plot limits
+   lims:
+     - ~
+     - ~
+     - ~
+     - ~
+   min_y_size: 2
+   xtitle: 'Seconds from Radmon disable'
+   ytitle: 'ACA temp (C)'
+   x: dtime
+   y: aca_temp
+   device: 'aca_temp.ps/vcps'
+   symbol_size: 1   
+   
+# ccd temp vs time plot
+ccd_temp:
+   mode: none
+   # plot limits
+   lims:
+     - ~
+     - ~
+     - ~
+     - ~
+   min_y_size: 1
+   xtitle: 'Seconds from Radmon disable'
+   ytitle: 'CCD temp (C)'
+   x: dtime
+   y: ccd_temp
+   device: 'ccd_temp.ps/vcps'
+   symbol_size: 1
+
+# dac vs time plot
+dac:
+   mode: none
+   # plot limits
+   lims:
+     - ~
+     - ~
+     - ~
+     - ~
+   min_y_size: 10
+   xtitle: 'Seconds from Radmon disable'
+   ytitle: 'TEC DAC Control Level'
+   randomize_unit: 1
+   x: dtime
+   y: dac
+   device: 'dac.ps/vcps'
+   symbol_size: .5
+
+# dac vs dtemp plot
+dac_vs_dtemp:
+   mode: none
+   # plot limits
+   lims:
+     - ~
+     - ~
+     - ~
+     - ~
+   min_y_size: 10
+   xtitle: 'ACA temp - CCD temp (C)'
+   ytitle: 'TEC DAC Control Level'
+   randomize_unit: 1
+   x: dtemp
+   y: dac
+   oplot:
+   # array of hashes to overplot
+   # so far, code only knows how to plot 2rd order polynomials
+     - type: poly
+       poly:
+         - 114.474
+         - 0.403096
+         - 0.236348
+       npoints: 100
+       plot_type: line
+       color:
+          line: black
+       options:
+          linestyle: dashed
+   device: 'dacvstemp.ps/vcps'
+   symbol_size: .5
+
+
+
+
+

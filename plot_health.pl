@@ -2,7 +2,7 @@
 
 use strict; 
 use warnings;
-use PGPLOT;
+#use PGPLOT;
 
 use XML::Dumper;
 use PDL;
@@ -11,11 +11,12 @@ use Getopt::Long;
 use YAML;
 use Carp;
 
+use Chandra::Time;
 
 my %opt = ();
 
-our %opt = ();
-our $starttime;
+#our %opt = ();
+#our $starttime;
 
 GetOptions (\%opt,
             'help!',
@@ -24,7 +25,8 @@ GetOptions (\%opt,
             'verbose|v!',
             'delete!',
 	    'config=s',
-	    'summary!',
+	    'tstart=s',
+	    'tstop=s',
             );
 
 
@@ -47,6 +49,13 @@ else{
     %config = YAML::LoadFile( "${SHARE}/plot_health.yaml" );
 }
 
+my ($tstart, $tstop);
+if (defined $opt{tstart}){
+    $tstart = Chandra::Time->new($opt{tstart})->secs();
+}
+if (defined $opt{tstop}){
+    $tstop = Chandra::Time->new($opt{tstop})->secs();
+}
 
 
 my $WORKING_DIR = $ENV{PWD};
@@ -64,33 +73,81 @@ $config{general}->{working_dir} = $WORKING_DIR;
 
 
 my $xml_data_file = $config{general}->{xml_data_file};
-#my $health_plot = "$config{health_plot}.ps";
-#my $health_plot_gif = "$config{health_plot}.gif";
-#my $legend = "$config{legend_plot}.ps";
-#my $legend_gif = "$config{legend_plot}.gif";
-
-
-# Search for directories in $WORKING_DIR that have telemetry but don't have
-# $xml_out_file
 
 my @todo_directories;
 
 # first get a list of directories.
 my @telem_dirs = glob("${WORKING_DIR}/????:*");
 
-# step backward through them until I find one that has an $xml_out_file
-for my $dir ( reverse @telem_dirs ){
-#    if (( -e "${dir}/$health_plot" ) and (-e "${dir}/$legend")){
-#        last unless $opt{missing};
-#    }
-#    else{
-        push @todo_directories, $dir;
-#    }
+
+# first, if time range specified for multi or summary plots,
+# just get all the dirs in that time range
+if ((defined $tstart) or (defined $tstop)){
+  DIRECTORY:
+    for my $dir (@telem_dirs){
+	my $dir_start;
+	if ($dir =~ /${WORKING_DIR}\/(.*)/){
+	    $dir_start = $1;
+	}
+	else{
+	    next DIRECTORY; 
+	}
+	my $dir_start_secs = Chandra::Time->new($dir_start)->secs();
+
+	if (defined $tstart and defined $tstop){
+	    next DIRECTORY if ( $dir_start_secs < $tstart );
+	    next DIRECTORY if ( $dir_start_secs > $tstop );
+	    push @todo_directories, $dir;
+	    next DIRECTORY;
+	}
+
+	if (defined $tstart and not defined $tstop){
+	    next DIRECTORY if ($dir_start_secs < $tstart);
+	    push @todo_directories, $dir;
+	    next DIRECTORY;
+	}
+
+	if (defined $tstop and not defined $tstart){
+	    next DIRECTORY if ($dir_start_secs > $tstop);
+	    push @todo_directories, $dir;
+	    next DIRECTORY;
+	}
+
+
+
+    }
+    
+   
+}
+# if no range specified, try to just get recent directories with
+# missing plots
+else{
+
+    my @plotlist;
+    for my $plot ( values %{$config{plot}} ){
+	my $device = "$plot->{device}";
+	if ($device =~ /(.*)\/vcps/ ){
+	    push @plotlist, $1;
+	}
+    }
+    
+# step backward through them until I find one (or more) without pictures
+    
+  DIRECTORY:
+    for my $dir ( reverse @telem_dirs ){
+      PICTURE:
+	for my $picture (@plotlist){
+	    next PICTURE if (-e "${dir}/${picture}");
+	    push @todo_directories, $dir;
+	    next DIRECTORY;
+	}
+	# if missing flag specified, continue even if I hit a directory with pictures
+	last DIRECTORY unless ($opt{missing});
+    }
 }
 
-my @dir = @todo_directories[0 ... 1];
 
-plot_health( \@dir, \%config );
+plot_health( \@todo_directories, \%config );
 
 #for my $dir (@todo_directories[0]){
 #    if ($opt{verbose}){
@@ -166,7 +223,7 @@ sub plot_health{
     my @data_array;
 
     for my $dir (@{$dirlist}){
-	print "dir is $dir \n";
+#	print "dir is $dir \n";
 	
 	my $xml_file = "${dir}/$config->{general}->{xml_data_file}";
 
@@ -446,12 +503,11 @@ sub make_plot_summary{
 	}
     }
 
-    my $pass_count = 0; # reset for each plot
 
     for my $dir_num ( 0 ... scalar(@{$data_ref})-1 ){
 	
 	my $datadir = $data_ref->[$dir_num];
-	my $coloridx = ($dir_num + $pass_count) % scalar(@colorlist);
+	my $coloridx = ($dir_num) % scalar(@colorlist);
 	my $color = $colorlist[$coloridx];
 
 	my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $datadir->{pdl}->{$y_type}->stats;
@@ -517,7 +573,7 @@ sub make_plot_summary{
 				 );
 
 
-    $pass_count++;
+
     }
 
     
@@ -564,7 +620,6 @@ sub make_plot_a_vs_b{
 	    my $coloridx;
 	    if ($colormode eq 'obsid'){
 		$coloridx = ($obs_num) % scalar(@colorlist);
-		print "coloridx is $coloridx for $obs_num \n";
 	    }
 	    else{
 		$coloridx = ($dir_num) % scalar(@colorlist);
@@ -610,7 +665,12 @@ sub plot{
 	$device = $data_ref->[0]->{dirname} . "/" . $curr_config->{device};
     }	
     else{
-	$device = $curr_config->{device};
+	if (defined $config->{general}->{plot_dir}){
+	    $device = $config->{general}->{plot_dir} . "/" . $curr_config->{device};
+	}
+	else{
+	    $device = $curr_config->{device};
+	}
     }
 
     print "device is $device \n";
@@ -634,7 +694,7 @@ sub plot{
 
     if (defined $curr_config->{randomize_unit}){
 	my $random_unit = $curr_config->{randomize_unit};
-	print "random unit is $random_unit \n";
+#	print "random unit is $random_unit \n";
 	for my $data_dir (@{$data_ref}){
 	    my $y_pdl = $data_dir->{pdl}->{$y_type};
 	    my $random = random($y_pdl);
@@ -673,7 +733,7 @@ sub plot{
 #    use Data::Dumper;
 #    print Dumper @pgs_array;
     
-    print "plot is $plot \n";
+#    print "plot is $plot \n";
     use Data::Dumper;
     eval{
 	pgs_plot( @pgs_array );
