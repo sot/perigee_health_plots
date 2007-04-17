@@ -11,6 +11,8 @@ use Getopt::Long;
 use YAML;
 use Carp;
 
+use Data::Dumper;
+
 use Chandra::Time;
 
 my %opt = ();
@@ -97,19 +99,25 @@ if ((defined $tstart) or (defined $tstop)){
 	if (defined $tstart and defined $tstop){
 	    next DIRECTORY if ( $dir_start_secs < $tstart );
 	    next DIRECTORY if ( $dir_start_secs > $tstop );
-	    push @todo_directories, $dir;
+	    if ( -e "${dir}/${xml_data_file}"){
+		push @todo_directories, $dir;
+	    }
 	    next DIRECTORY;
 	}
 
 	if (defined $tstart and not defined $tstop){
 	    next DIRECTORY if ($dir_start_secs < $tstart);
-	    push @todo_directories, $dir;
+	    if ( -e "${dir}/${xml_data_file}"){
+		push @todo_directories, $dir;
+	    }
 	    next DIRECTORY;
 	}
 
 	if (defined $tstop and not defined $tstart){
 	    next DIRECTORY if ($dir_start_secs > $tstop);
-	    push @todo_directories, $dir;
+	    if ( -e "${dir}/${xml_data_file}"){
+		push @todo_directories, $dir;
+	    }
 	    next DIRECTORY;
 	}
 
@@ -146,6 +154,9 @@ else{
     }
 }
 
+if ($opt{verbose}){
+    print Dumper @todo_directories;
+}
 
 plot_health( \@todo_directories, \%config );
 
@@ -290,20 +301,9 @@ sub plot_health{
     }
 
 
+# if I want 1 pass per plot, run in a loop and put the plots in the pass
+# directory
 
-
-#
-#    use Data::Dumper;
-#    print Dumper %colranges;
-#	    
-#       
-#
-#    
-#    my @plotarray;
-#
-## Page Setup
-#
-#
     if ($config->{general}->{dir_mode} eq 'single'){
 	
 	for my $dir (@data_array){
@@ -327,6 +327,9 @@ sub plot_health{
 	}
 	
     }
+
+# else, gather all of the pass data and make multi or summary plots
+
     else{
 	
 	my %colranges = find_pdl_ranges( \@data_array );

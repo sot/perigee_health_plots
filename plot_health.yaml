@@ -7,6 +7,9 @@
 # directory that contains perigee pass directories
 working_dir: /proj/gads6/aca/perigee_health_plots
 
+# for the multi-directory case
+out_plot_dir: .
+
 # xml input file name
 xml_data_file: data.xml.gz
 
@@ -138,7 +141,7 @@ dac_vs_dtemp:
           line: black
        options:
           linestyle: dashed
-   device: 'dacvstemp.ps/vcps'
+   device: 'dacvsdtemp.ps/vcps'
    symbol_size: .5
 
 
