@@ -5,10 +5,8 @@
 --- general
 ---
 # directory that contains perigee pass directories
-working_dir: /proj/gads6/aca/perigee_health_plots
+working_dir: /proj/gads6/aca/perigee_health_plots/PASS_DATA
 
-# for the multi-directory case
-out_plot_dir: .
 
 # xml input file name
 xml_data_file: data.xml.gz

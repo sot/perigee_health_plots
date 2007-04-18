@@ -3,9 +3,9 @@ TASK = perigee_health_plots
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
-SHARE = index.html get_perigee_telem.pl get_perigee_telem.yaml perigee_telem_parse.pl perigee_telem_parse.yaml plot_health.pl install_plots.pl 
+SHARE = get_perigee_telem.pl get_perigee_telem.yaml perigee_telem_parse.pl perigee_telem_parse.yaml plot_health.pl plot_summary.yaml plot_health.yaml install_plots.pl install_plots.yaml make_month_summary.pl make_month_summary.yaml PlotHealth.pm
 DATA = pass_plots.cfg column_conversion.yaml aca8x8.fits.gz
-LIB = Telemetry.pm
+LIB = Telemetry.pm 
 
 radmon:
 	mkdir -p $(INSTALL)/data/arc/iFOT_events/radmon/
