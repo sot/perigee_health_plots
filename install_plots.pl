@@ -20,13 +20,17 @@ use CGI qw/ :standard /;
 
 use Chandra::Time;
 
+use Hash::Merge qw( merge );
+
 my %opt = ();
 
 GetOptions (\%opt,
 	    'help!',
+	    'shared_config=s',
 	    'config=s',
 	    'redo!',
 	    'verbose!',
+	    'dryrun!',
 #	    'dir=s',
 #	    'web_dir=s',
 	   );
@@ -44,13 +48,27 @@ my $WEB_DIR = "${SKA}/www/ASPECT/${TASK}/";
 my $WORKING_DIR = $ENV{PWD};
 my $SUMMARY_DIR;
 
-my %config;
-if ( defined $opt{config}){
-    %config = YAML::LoadFile( $opt{config} );
+my %share_config;
+if ( defined $opt{shared_config}){
+    %share_config = YAML::LoadFile( $opt{shared_config} );
 }
 else{
-    %config = YAML::LoadFile( "${SHARE}/install_plots.yaml" );
+    %share_config = YAML::LoadFile( "${SHARE}/shared.yaml" );
 }
+
+my %task_config;
+if ( defined $opt{config} ){
+    %task_config = YAML::LoadFile( $opt{config} );
+}
+else{
+    %task_config = YAML::LoadFile( "${SHARE}/install_plots.yaml");
+}
+
+# combine config
+Hash::Merge::set_behavior( 'RIGHT_PRECEDENT' );
+
+my %config = %{ merge( \%share_config, \%task_config )};
+
 
 
 if ( defined $config{general}->{pass_dir} ){
@@ -69,13 +87,12 @@ if ( defined $config{general}->{summary_dir} ){
 print "Installing pass plots to $WEB_DIR \n";
 
 
-
-my $source_plot_ext = $config{general}->{source_plot_ext};
-my @source_plots = @{$config{general}->{source_plots}};
-my @dest_plots = @{$config{general}->{dest_plots}};
+my $source_plot_ext = $config{task}->{source_plot_ext};
+my @source_plots = @{$config{task}->{source_plots}};
+my @dest_plots = @{$config{task}->{dest_plots}};
 
 my $pass_time_file = $config{general}->{pass_time_file};
-my $pass_dir_index = $config{general}->{pass_dir_index};
+my $pass_dir_index = $config{task}->{pass_dir_index};
 
 my %time_tree;
 
@@ -104,12 +121,21 @@ for my $pass ( @passes ){
 		unless (-e "${pass}/${expected_plot}" );
 	}
 
-	mkpath("$WEB_DIR/$tstart");
-	
-	for my $plot_idx (0 .. $#source_plots){
-	    system(" convert ${pass}/$source_plots[$plot_idx] ${WEB_DIR}/${tstart}/$dest_plots[$plot_idx]"); 
+	unless( $opt{dryrun} ){
+	    mkpath("$WEB_DIR/$tstart");
+	}
+	else{
+	    print "Would have converted: \n";
 	}
 
+	for my $plot_idx (0 .. $#source_plots){
+	    unless( $opt{dryrun} ){
+		system(" convert ${pass}/$source_plots[$plot_idx] ${WEB_DIR}/${tstart}/$dest_plots[$plot_idx]"); 
+	    }
+	    else{
+		 print "${pass}/$source_plots[$plot_idx] to ${WEB_DIR}/${tstart}/$dest_plots[$plot_idx] \n";
+	    }
+	}
 	
 	my $index = new CGI;
 	my $out_string;
@@ -131,8 +157,12 @@ for my $pass ( @passes ){
 	$out_string .= sprintf( $index->end_html );
 	
 	my $index_file = io("${WEB_DIR}/${tstart}/$pass_dir_index");
-	$index_file->print($out_string);
-	
+	unless( $opt{dryrun} ){
+	    $index_file->print($out_string);
+	}
+	else{
+	    print "Would have made: ${WEB_DIR}/${tstart}/$pass_dir_index \n";
+	}
 
 	
     }
@@ -161,11 +191,23 @@ for my $summ_month ( @summaries ){
 		unless (-e "${summ_month}/${expected_plot}" );
 	}
 
-	mkpath("$WEB_DIR/$month_string");
-	
-	for my $plot_idx (0 .. $#source_plots){
-	    system(" convert ${summ_month}/$source_plots[$plot_idx] ${WEB_DIR}/${month_string}/$dest_plots[$plot_idx]"); 
+	unless( $opt{dryrun}){
+	    mkpath("$WEB_DIR/$month_string");
 	}
+	else{
+	    print "Would have mkdir $WEB_DIR/$month_string \n";
+	    print " and converted files: \n";
+	}
+
+	for my $plot_idx (0 .. $#source_plots){
+	    unless( $opt{dryrun}){
+		system(" convert ${summ_month}/$source_plots[$plot_idx] ${WEB_DIR}/${month_string}/$dest_plots[$plot_idx]"); 
+	    }
+	    else{
+		print "${summ_month}/$source_plots[$plot_idx] to ${WEB_DIR}/${month_string}/$dest_plots[$plot_idx] \n";
+	    }
+	}
+	    
 
     }
 
@@ -195,7 +237,7 @@ for my $year (sort (keys %time_tree)){
 	    month_name => $month_map{$month}, 
 	    year => $year,
 	    passes => $time_tree{$year}->{$month}, 
-	    base_dir => $config{general}->{base_dir}, 
+	    base_dir => $config{general}->{base_url}, 
 	    web_dir => $WEB_DIR, 
 	    plots => \@dest_plots});
 	$main_page .= "<TD><A HREF=\"${summ_string}.html\">$month_map{$month}</A></TD>";
@@ -210,8 +252,12 @@ for my $year (sort (keys %time_tree)){
 $main_page .= "</TABLE></BODY></HTML>";
 #print $main_page;
 my $index = io("${WEB_DIR}/index.html");
-$index->print($main_page);
-
+unless( $opt{dryrun}){
+    $index->print($main_page);
+}
+else{
+    print "Would have made ${WEB_DIR}/index.html \n";
+}
 
 ##***************************************************************************
 sub usage
@@ -236,7 +282,7 @@ sub make_nav_page{
     my $month_name = $arg_in->{month_name};
     my $year = $arg_in->{year};
     my $passes = $arg_in->{passes};
-    my $base_dir = $arg_in->{base_dir};
+    my $base_dir = $arg_in->{base_url};
     my $web_dir = $arg_in->{web_dir};
     my @dest_plots = @{$arg_in->{plots}};
     
@@ -261,8 +307,14 @@ sub make_nav_page{
     $out_string .= "</BODY></HTML>\n";
     
     my $out_file = io("${WEB_DIR}/${summ_string}.html");
-    $out_file->print($out_string);
+    unless( $opt{dryrun} ){
+	$out_file->print($out_string);
+    }
+    else{
+	print "Would have made: ${WEB_DIR}/${summ_string}.html \n";
+    }
 }
+
 
 #sub make_nav_table{
 #    my $name = shift;
