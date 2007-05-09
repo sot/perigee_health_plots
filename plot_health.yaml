@@ -1,21 +1,7 @@
 # Default config file for ACA perigee health plots
 
-
-# GLOBAL OPTIONS ------------------------------------------------------
---- general
+--- task
 ---
-# directory that contains perigee pass directories
-working_dir: /proj/gads6/aca/perigee_health_plots/PASS_DATA
-
-
-# xml input file name
-xml_data_file: data.xml.gz
-
-# pass time file ( perigee start/stop times)
-pass_time_file: pass_times.txt
-
-# column config file ( how to get dac etc from telemetry)
-column_config: /proj/sot/ska/data/perigee_health_plots/column_conversion.yaml
 
 # directory mode; multiple ones, or single one storing plots in pass
 #  directory
@@ -74,7 +60,8 @@ aca_temp:
    y: aca_temp
    device: 'aca_temp.ps/vcps'
    symbol_size: 1   
-   
+   axis_label_size: 1   
+
 # ccd temp vs time plot
 ccd_temp:
    mode: none
@@ -91,6 +78,7 @@ ccd_temp:
    y: ccd_temp
    device: 'ccd_temp.ps/vcps'
    symbol_size: 1
+   axis_label_size: 1
 
 # dac vs time plot
 dac:
@@ -109,6 +97,8 @@ dac:
    y: dac
    device: 'dac.ps/vcps'
    symbol_size: .5
+   axis_label_size: 1
+   axis_title_size: 1
 
 # dac vs dtemp plot
 dac_vs_dtemp:
@@ -141,8 +131,8 @@ dac_vs_dtemp:
           linestyle: dashed
    device: 'dacvsdtemp.ps/vcps'
    symbol_size: .5
-
-
+   axis_label_size: 1
+   axis_title_size: 1
 
 
 

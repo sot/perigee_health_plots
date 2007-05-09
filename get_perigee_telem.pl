@@ -18,7 +18,7 @@ use Ska::Convert qw(date2time);
 use File::Copy;
 use Data::Dumper;
 use YAML;
-
+use Hash::Merge qw( merge );
 
 # I stuck these in an eval section later... we only need to load them if we
 # have to grab data
@@ -32,6 +32,7 @@ our %opt = ();
 
 GetOptions (\%opt,
 	    'help!',
+	    'shared_config=s',
 	    'config=s',
 	    'dir=s',
 	   );
@@ -45,41 +46,55 @@ my $SKA = $ENV{SKA} || '/proj/sot/ska';
 my $TASK = 'perigee_health_plots';
 my $SHARE = "$ENV{SKA}/share/${TASK}";
 
-my %config;
-if ( defined $opt{config}){
-    %config = YAML::LoadFile( $opt{config} );
+my %share_config;
+if ( defined $opt{shared_config}){
+    %share_config = YAML::LoadFile( $opt{shared_config} );
 }
 else{
-    %config = YAML::LoadFile( "${SHARE}/get_perigee_telem.yaml" );
+    %share_config = YAML::LoadFile( "${SHARE}/shared.yaml" );
 }
 
+my %task_config;
+if ( defined $opt{config} ){
+    %task_config = YAML::LoadFile( $opt{config} );
+}
+else{
+    %task_config = YAML::LoadFile( "${SHARE}/get_perigee_telem.yaml");
+}
+
+# combine config
+Hash::Merge::set_behavior( 'RIGHT_PRECEDENT' );
+
+my %config = %{ merge( \%share_config, \%task_config )};
+
+
 my $WORKING_DIR = $ENV{PWD};
-if ( defined $opt{dir} or defined $config{working_dir} ){
+if ( defined $opt{dir} or defined $config{general}->{pass_dir} ){
  
     if (defined $opt{dir}){
 	$WORKING_DIR = $opt{dir};
     }
     else{
-	$WORKING_DIR = $config{working_dir};
+	$WORKING_DIR = $config{general}->{pass_dir};
     }
 
 }
 
 
 my $RADMON_DIR;
-if (defined $config{radmon_dir} ){
-    $RADMON_DIR = $config{radmon_dir};
+if (defined $config{task}->{radmon_dir} ){
+    $RADMON_DIR = $config{task}->{radmon_dir};
 }
 else{
     $RADMON_DIR = "${SKA}/data/arc/iFOT_events/radmon/";
 }
 
-my $pass_time_file = $config{pass_time_file};
+my $pass_time_file = $config{general}->{pass_time_file};
 
 my @radmon_files = glob("$RADMON_DIR/*");
-
-#my $ps_outfile = 'aca_health_perigee.ps';
-#my $gif_outfile = 'aca_health.gif';
+#
+##my $ps_outfile = 'aca_health_perigee.ps';
+##my $gif_outfile = 'aca_health.gif';
 
 
 

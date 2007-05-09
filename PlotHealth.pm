@@ -3,7 +3,7 @@ package PlotHealth;
 use strict; 
 use warnings;
 #use PGPLOT;
-use XML::Dumper;
+#use XML::Dumper;
 use PDL;
 use PDL::NiceSlice;
 use Getopt::Long;
@@ -58,12 +58,12 @@ sub new{
 sub make_plots{
     my $self = shift;
     my %config = %{$self->config()};
-    my $WORKING_DIR = $config{general}->{working_dir};
+    my $WORKING_DIR = $config{general}->{pass_dir};
     my $tstart = $self->tstart();
     my $tstop = $self->tstop();
     my %opt = %{$self->opt()};
 
-    my $xml_data_file = $config{general}->{xml_data_file};
+    my $yaml_data_file = $config{general}->{data_file};
 
     my @todo_directories;
 
@@ -92,7 +92,7 @@ sub make_plots{
 		if (defined $tstart and defined $tstop){
 		    next DIRECTORY if ( $dir_start_secs < $tstart );
 		    next DIRECTORY if ( $dir_start_secs > $tstop );
-		    if ( -e "${dir}/${xml_data_file}"){
+		    if ( -e "${dir}/${yaml_data_file}"){
 			push @todo_directories, $dir;
 		    }
 		    next DIRECTORY;
@@ -100,7 +100,7 @@ sub make_plots{
 		
 		if (defined $tstart and not defined $tstop){
 		    next DIRECTORY if ($dir_start_secs < $tstart);
-		    if ( -e "${dir}/${xml_data_file}"){
+		    if ( -e "${dir}/${yaml_data_file}"){
 			push @todo_directories, $dir;
 		    }
 		    next DIRECTORY;
@@ -108,7 +108,7 @@ sub make_plots{
 
 		if (defined $tstop and not defined $tstart){
 		    next DIRECTORY if ($dir_start_secs > $tstop);
-		    if ( -e "${dir}/${xml_data_file}"){
+		    if ( -e "${dir}/${yaml_data_file}"){
 			push @todo_directories, $dir;
 		    }
 		    next DIRECTORY;
@@ -149,7 +149,7 @@ sub make_plots{
 	print Dumper @todo_directories;
     }
     
-    plot_health( \@todo_directories, \%config );
+    plot_health( \@todo_directories, \%config, \%opt );
 }
 #for my $dir (@todo_directories[0]){
 #    if ($opt{verbose}){
@@ -218,23 +218,24 @@ sub plot_health{
 
     my $dirlist = shift;
     my $config = shift;
+    my $opt = shift;
 
-    my @columns = @{$config->{general}->{data_columns}};
-
+    my @columns = @{$config->{task}->{data_columns}};
 
     my @data_array;
 
     for my $dir (@{$dirlist}){
 #	print "dir is $dir \n";
 	
-	my $xml_file = "${dir}/$config->{general}->{xml_data_file}";
+	my $yaml_file = "${dir}/$config->{general}->{data_file}";
 
-# read in data from XML file
-	my $dump = new XML::Dumper;
-	my $xml = $dump->xml2pl( $xml_file );
+# read in data from YAML file
+#	my $dump = new XML::Dumper;
+#	my $xml = $dump->xml2pl( $xml_file );
+	my $yaml = YAML::LoadFile($yaml_file);
 
-	my %data = %{$xml->{telem}};
-	my %info = %{$xml->{info}};
+	my %data = %{$yaml->{telem}};
+	my %info = %{$yaml->{info}};
 
 # convert the handy text arrays to pdls
 	my %datapdl;
@@ -295,13 +296,14 @@ sub plot_health{
 # if I want 1 pass per plot, run in a loop and put the plots in the pass
 # directory
 
-    if ($config->{general}->{dir_mode} eq 'single'){
+    if ($config->{task}->{dir_mode} eq 'single'){
 	
 	for my $dir (@data_array){
 	    
 	    my %colranges = find_pdl_ranges( [$dir]);
 	    
 	    my $plot_helper = PlotHelper->new({ config => $config,
+						opt => $opt,
 						data_array => [$dir],
 						ranges => \%colranges,
 					    });
@@ -326,6 +328,7 @@ sub plot_health{
 	my %colranges = find_pdl_ranges( \@data_array );
 	
 	my $plot_helper = PlotHelper->new({ config => $config,
+					    opt => $opt,
 					    data_array => \@data_array,
 					    ranges => \%colranges,
 					    });
@@ -438,6 +441,7 @@ use warnings;
 use Class::MakeMethods::Standard::Hash(
                                         scalar => [ qw(
 						       config
+						       opt
 						       data_array
 						       ranges
 						       )
@@ -464,6 +468,7 @@ sub new{
     $self->config($arg_in->{config});
     $self->data_array($arg_in->{data_array});
     $self->ranges($arg_in->{ranges});
+    $self->opt($arg_in->{opt});
 
     return $self;
 
@@ -478,6 +483,7 @@ sub make_plot_summary{
     my $x_type = $arg_in->{x_type};
     my $data_ref = $arg_in->{data_array};
     my @colorlist = @{$arg_in->{color_array}};
+    my $axis_label_size = $arg_in->{axis_label_size};
       
     my @data_plot_array;
 
@@ -528,6 +534,8 @@ sub make_plot_summary{
 #	    if ( $date_min ~= /(\d{4}):(\d{3}):.*)
 #	}
 
+
+	push @data_plot_array, ( charsize => { axis => $axis_label_size } );
 	
 	my @yvalue = [ $ymin, $ymin ];
 	my @xvalue = [ $xmin, $xmax ];
@@ -584,8 +592,8 @@ sub make_plot_a_vs_b{
     my $b = $arg_in->{x_type};
     my $data_ref = $arg_in->{data_array};
     my @colorlist = @{$arg_in->{color_array}};
-    my $symbol_size = $arg_in->{point_size};
-       
+    my $symbol_size = $arg_in->{symbol_size};
+    my $axis_label_size = $arg_in->{axis_label_size};
 
     my @data_plot_array;
 
@@ -623,7 +631,7 @@ sub make_plot_a_vs_b{
 				     'x' => [@xvalue],
 				     'y' => $datapdl{$a}->($obsid_idx{$obsid}),
 				     color => { symbol => $color },
-				     charsize => {symbol => $symbol_size },
+				     charsize => {symbol => 1, title => 1},
 				     plot => 'points',
 				     );
 
@@ -647,6 +655,7 @@ sub plot{
     my $plot = shift;
 
     my $config = $self->config();
+    my $opt = $self->opt();
     my $data_ref = $self->data_array();
     my $colrange = $self->ranges();
 
@@ -655,12 +664,12 @@ sub plot{
     my @pgs_array;
 
     my $device;
-    if ($config->{general}->{dir_mode} eq 'single'){
+    if ($config->{task}->{dir_mode} eq 'single'){
 	$device = $data_ref->[0]->{dirname} . "/" . $curr_config->{device};
     }	
     else{
-	if (defined $config->{general}->{plot_dir}){
-	    $device = $config->{general}->{plot_dir} . "/" . $curr_config->{device};
+	if (defined $config->{task}->{plot_dir}){
+	    $device = $config->{task}->{plot_dir} . "/" . $curr_config->{device};
 	}
 	else{
 	    $device = $curr_config->{device};
@@ -702,7 +711,8 @@ sub plot{
 	push @pgs_array, make_plot_summary({ y_type => $y_type,
 					     x_type => $x_type,
 					     data_array => $data_ref,
-					     color_array => $self->config()->{general}->{allowed_colors},
+					     color_array => $self->config()->{task}->{allowed_colors},
+					     axis_label_size => $curr_config->{axis_label_size},
 					 });
 
     }
@@ -711,8 +721,9 @@ sub plot{
 	push @pgs_array, make_plot_a_vs_b({ y_type => $y_type, 
 					    x_type => $x_type, 
 					    data_array => $data_ref, 
-					    point_size => $curr_config->{symbol_size},
-					    color_array => $self->config()->{general}->{allowed_colors} 					
+					    symbol_size => $curr_config->{symbol_size},
+					    axis_label_size => $curr_config->{axis_label_size},
+					    color_array => $self->config()->{task}->{allowed_colors} 					
 					});
 	
 	if (defined $curr_config->{oplot}){
@@ -728,12 +739,18 @@ sub plot{
     
 #    print "plot is $plot \n";
     use Data::Dumper;
-    eval{
-	pgs_plot( @pgs_array );
-    };
-    if ($@){
-	print $@, "\n";
-	print Dumper @pgs_array;
+    unless ($opt->{dryrun}){
+	eval{
+#	print Dumper @pgs_array;
+	    pgs_plot( @pgs_array );
+	};
+	if ($@){
+	    print $@, "\n";
+	    print Dumper @pgs_array;
+	}
+    }
+    else{
+	print "would have plotted $plot to $device \n";
     }
 
 }
@@ -820,10 +837,11 @@ sub legend{
     my $self = shift;
     my $data_ref = $self->data_array();
     my $config = $self->config();
+    my $opt = $self->config();
 
     my @ordered_obsid = @{$data_ref->[0]->{ordered_obsid}};
-    my @colorlist = @{$config->{general}->{allowed_colors}};
-    my %pg_colors = %{$config->{general}->{pg_colors}};
+    my @colorlist = @{$config->{task}->{allowed_colors}};
+    my %pg_colors = %{$config->{task}->{pg_colors}};
     
 
 ##    my $master_width = 6 + $sub_width;
@@ -841,37 +859,40 @@ my $aspect = .5;
 ## Setup pgplot
 
     my $dirname = $data_ref->[0]->{dirname};
-    my $legend_device = $config->{general}->{legend_device};
+    my $legend_device = $config->{task}->{legend_device};
 
     my $dev = "${dirname}/${legend_device}"; # unless defined $dev;  # "?" will prompt for device
-    pgbegin(0,$dev,2,1);  # Open plot device
-    pgpap($master_width, $aspect );
-    pgscf(1);             # Set character font
-    pgscr(0, 1.0, 1.0, 1.0);
-    pgscr(1, 0.0, 0.0, 0.0);
-###    pgslw(2);
     
+    unless ($opt->{dryrun}){
+	
+	pgbegin(0,$dev,2,1);  # Open plot device
+	pgpap($master_width, $aspect );
+	pgscf(1);             # Set character font
+	pgscr(0, 1.0, 1.0, 1.0);
+	pgscr(1, 0.0, 0.0, 0.0);
+###    pgslw(2);
+	
 # Define data limits and plot axes
-    pgpage();
-    pgsch(2);
-    pgvsiz (0.5, 4.5, 0.5, 4.5);
-    pgswin (0,3000,0,3000);
+	pgpage();
+	pgsch(2);
+	pgvsiz (0.5, 4.5, 0.5, 4.5);
+	pgswin (0,3000,0,3000);
 #pgbox  ('BCNST', 0.0, 0, 'BCNST', 0.0, 0);
-
-    for my $i (0 ... $#ordered_obsid){
-	my $obsid = $ordered_obsid[$i];
-	my $color = $colorlist[($i % scalar(@colorlist))];
+	
+	for my $i (0 ... $#ordered_obsid){
+	    my $obsid = $ordered_obsid[$i];
+	    my $color = $colorlist[($i % scalar(@colorlist))];
 #    print "obsid: $obsid is color: $color \n";
-	pgsci( $pg_colors{'black'} );
-	pgtext( 10, 2800-($i*200), "$obsid" );
-	pgsci( $pg_colors{$color} );
-	pgcirc( 800, 2850-($i*200), 50);
+	    pgsci( $pg_colors{'black'} );
+	    pgtext( 10, 2800-($i*200), "$obsid" );
+	    pgsci( $pg_colors{$color} );
+	    pgcirc( 800, 2850-($i*200), 50);
+	}
+	pgend();
     }
-
-
-
-
-    pgend();
+    else{
+	print "would have made $dev\n";
+    }
 }
 
 

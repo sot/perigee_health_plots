@@ -11,7 +11,9 @@ use PDL::NiceSlice;
 use YAML;
 use Data::ParseTable qw( parse_table );
 use Ska::Convert qw( date2time );
-use XML::Dumper;
+use IO::All;
+use Hash::Merge qw( merge );
+#use XML::Dumper;
 
 
 
@@ -21,6 +23,7 @@ my %opt = ();
 
 GetOptions (\%opt,
             'help!',
+	    'shared_config=s',
 	    'config=s',
             'dir=s',
 	    'missing!',
@@ -36,36 +39,50 @@ my $SKA = $ENV{SKA} || '/proj/sot/ska';
 my $TASK = 'perigee_health_plots';
 my $SHARE = "$ENV{SKA}/share/${TASK}";
 
-my %config;
-if ( defined $opt{config}){
-    %config = YAML::LoadFile( $opt{config} );
+my %share_config;
+if ( defined $opt{shared_config}){
+    %share_config = YAML::LoadFile( $opt{shared_config} );
 }
 else{
-    %config = YAML::LoadFile( "${SHARE}/perigee_telem_parse.yaml" );
+    %share_config = YAML::LoadFile( "${SHARE}/shared.yaml" );
 }
+
+
+my %task_config;
+if ( defined $opt{config} ){
+    %task_config = YAML::LoadFile( $opt{config} );
+}
+else{
+    %task_config = YAML::LoadFile( "${SHARE}/perigee_telem_parse.yaml");
+}
+
+# combine config
+Hash::Merge::set_behavior( 'RIGHT_PRECEDENT' );
+
+my %config = %{ merge( \%share_config, \%task_config )};
 
 
 my $WORKING_DIR = $ENV{PWD};
-if ( defined $opt{dir} or defined $config{working_dir} ){
+if ( defined $opt{dir} or defined $config{general}->{pass_dir} ){
 
     if (defined $opt{dir}){
         $WORKING_DIR = $opt{dir};
     }
     else{
-        $WORKING_DIR = $config{working_dir};
+        $WORKING_DIR = $config{general}->{pass_dir};
     }
 
 }
 
 
 
-my $xml_out_file;
-if (defined $config{xml_out_file}){
-    $xml_out_file = $config{xml_out_file};
-}
-else{
-    $xml_out_file = "data.xml.gz";
-}
+my $out_file = $config{general}->{data_file};
+#if (defined $config{xml_out_file}){
+#    $xml_out_file = $config{xml_out_file};
+#}
+#else{
+#    $xml_out_file = "data.xml.gz";
+#}
 
 # Search for directories in $WORKING_DIR that have telemetry but don't have 
 # $xml_out_file
@@ -77,7 +94,7 @@ my @telem_dirs = glob("${WORKING_DIR}/????:*");
 
 # step backward through them until I find one that has an $xml_out_file
 for my $dir ( reverse @telem_dirs ){
-    if ( -e "${dir}/$xml_out_file" ){
+    if ( -e "${dir}/$out_file" ){
 	last unless $opt{missing};
     }
     else{
@@ -92,22 +109,20 @@ for my $dir (@todo_directories){
     }
     my $result = perigee_parse({ dir => $dir,
 				 ska => $SKA,
-				 time_interval => $config{time_interval},
-				 min_samples => $config{min_samples},
-				 column_config  => $config{column_config},
-				 pass_time_file => $config{pass_time_file},
+				 time_interval => $config{task}->{time_interval},
+				 min_samples => $config{task}->{min_samples},
+				 column_config  => $config{general}->{column_config},
+				 pass_time_file => $config{general}->{pass_time_file},
 			     });
 
 
 
     # let's find points outside the expected ranges from the median
     my %threshold;
-    if (defined $config{threshold}){
-	%threshold = %{$config{threshold}};
+    if (defined $config{task}->{threshold}){
+	%threshold = %{$config{task}->{threshold}};
     }
     for my $column (keys %threshold){
-
-	print "column is $column \n";
 
 	my $column_pdl = pdl( @{$result->{telem}->{$column}} );
 
@@ -121,13 +136,16 @@ for my $dir (@todo_directories){
 	}
     }
 
-    use Data::Dumper;
-    print Dumper $result->{info};
-    my $dump = new XML::Dumper;
-    $dump->pl2xml( $result, "${dir}/$xml_out_file" );
-    chmod 0775, "${dir}/$xml_out_file";
+#    use Data::Dumper;
+#    print Dumper $result->{info};
+#    my $dump = new XML::Dumper;
+#    $dump->pl2xml( $result, "${dir}/$xml_out_file" );
+    my $yaml_out = io("${dir}/$out_file");
+    $yaml_out->print(Dump($result));
 
-    if ( -e "${dir}/$xml_out_file" ){
+    chmod 0775, "${dir}/$out_file";
+
+    if ( -e "${dir}/$out_file" ){
 	if ($opt{delete}){
 	    unlink("${dir}/acaf*fits.gz");
 	    unlink("${dir}/ccdm*fits.gz");

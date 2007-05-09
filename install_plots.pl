@@ -52,8 +52,6 @@ else{
     %config = YAML::LoadFile( "${SHARE}/install_plots.yaml" );
 }
 
-use Data::Dumper;
-print Dumper %config;
 
 if ( defined $config{general}->{pass_dir} ){
     $WORKING_DIR = $config{general}->{pass_dir};
@@ -142,8 +140,6 @@ for my $pass ( @passes ){
 
 }
 
-use Data::Dumper;
-print Dumper %time_tree;
 
 print "Installing summary plots to $WEB_DIR \n";
 
@@ -247,20 +243,21 @@ sub make_nav_page{
     my $summ_string = sprintf( "%s-%02d", $year, $month_num);
 
     my $out_string = "<HTML><HEAD></HEAD><BODY><br />\n";
-    $out_string = "<H2>$month_name Summary Statistics</H2><br />\n"; 
+    $out_string .= "<H3>$month_name Summary Statistics</H3>\n"; 
 #    print "make ${name}.html with contents \n";
 
+    for my $entry (@{$passes}){
+	$out_string .= "<A HREF=\"${base_dir}/${entry}\">${entry}</A><br />\n";
+    }
+
     $out_string .= sprintf( "<TABLE>\n");
-    $out_string .= sprintf( "<TR><TD><IMG SRC=\"${summ_string}/$dest_plots[0]\"></TD><TD><IMG SRC=\"${summ_string}/$dest_plots[1]\"></TD></TR>");
+    $out_string .= sprintf( "<TR><TD><IMG SRC=\"${summ_string}/$dest_plots[0]\"></TD><TD><IMG SRC=\"${summ_string}/$dest_plots[1]\"></TD></");
     $out_string .= sprintf( "<TR><TD><IMG SRC=\"${summ_string}/$dest_plots[2]\"></TD><TD><IMG SRC=\"${summ_string}/$dest_plots[3]\"></TD></TR>");
     $out_string .= sprintf( "</TABLE>");
 
     
     $out_string .= "<br />";
     
-    for my $entry (@{$passes}){
-	$out_string .= "<A HREF=\"${base_dir}/${entry}\">${entry}</A><br />\n";
-    }
     $out_string .= "</BODY></HTML>\n";
     
     my $out_file = io("${WEB_DIR}/${summ_string}.html");

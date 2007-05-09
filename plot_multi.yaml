@@ -1,28 +1,9 @@
-# Default config file for ACA perigee health plots
-
-
-# GLOBAL OPTIONS ------------------------------------------------------
---- general
+--- task
 ---
-# directory that contains perigee pass directories
-working_dir: /proj/gads6/aca/perigee_health_plots/PASS_DATA
-
-# xml input file name
-xml_data_file: data.xml.gz
-
-# pass time file ( perigee start/stop times)
-pass_time_file: pass_times.txt
-
-# column config file ( how to get dac etc from telemetry)
-column_config: /proj/sot/ska/data/perigee_health_plots/column_conversion.yaml
-
-# for the single-directory case; file name for a legend image
-legend_device: 'legend.ps/vcps'
 
 dir_mode: multi
 
-# plot dir
-plot_dir: /proj/gads6/jeanproj/perigee_health_plots/
+
 
 # mappings of color names to pgplot integers
 pg_colors:
