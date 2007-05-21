@@ -89,8 +89,8 @@ if ( defined $opt{dir} or defined $config{general}->{pass_dir} ){
 }
 $config{general}->{pass_dir} = $WORKING_DIR;
 
-#require "${SHARE}/PlotHealth.pm";
-require "PlotHealth.pm";
+require "${SHARE}/PlotHealth.pm";
+#require "PlotHealth.pm";
 
 my $plothealth = PlotHealth->new({ tstart => $tstart,
 				   tstop => $tstop,

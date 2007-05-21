@@ -44,8 +44,8 @@ my $SKA = $ENV{SKA} || '/proj/sot/ska';
 my $TASK = 'perigee_health_plots';
 my $SHARE = "$ENV{SKA}/share/${TASK}";
 
-#require "${SHARE}/PlotHealth.pm";
-require "/proj/gads6/jeanproj/perigee_health_plots/PlotHealth.pm";
+require "${SHARE}/PlotHealth.pm";
+
 
 my %share_config;
 if ( defined $opt{shared_config}){
