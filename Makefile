@@ -3,7 +3,7 @@ TASK = perigee_health_plots
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
-SHARE = shared.yaml get_perigee_telem.pl get_perigee_telem.yaml perigee_telem_parse.pl perigee_telem_parse.yaml plot_health.pl plot_summary.yaml plot_health.yaml install_plots.pl install_plots.yaml make_month_summary.pl make_month_summary.yaml PlotHealth.pm
+SHARE = shared.yaml get_perigee_telem.pl get_perigee_telem.yaml perigee_telem_parse.pl perigee_telem_parse.yaml plot_health.pl plot_summary.yaml plot_health.yaml install_plots.pl install_plots.yaml make_month_summary.pl make_month_summary.yaml PlotHealth.pm check_telem.pl check_telem.yaml
 DATA = pass_plots.cfg column_conversion.yaml aca8x8.fits.gz
 LIB = Telemetry.pm 
 

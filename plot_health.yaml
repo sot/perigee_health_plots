@@ -54,13 +54,15 @@ aca_temp:
      - ~
      - ~
    min_y_size: 2
-   xtitle: 'Seconds from Radmon disable'
+   xtitle: 'Hours from Radmon disable'
    ytitle: 'ACA temp (C)'
    x: dtime
    y: aca_temp
    device: 'aca_temp.ps/vcps'
    symbol_size: 1   
-   axis_label_size: 1   
+   axis_title_size: 1.5
+   axis_num_size: 1.5
+      
 
 # ccd temp vs time plot
 ccd_temp:
@@ -72,13 +74,14 @@ ccd_temp:
      - ~
      - ~
    min_y_size: 1
-   xtitle: 'Seconds from Radmon disable'
+   xtitle: 'Hours from Radmon disable'
    ytitle: 'CCD temp (C)'
    x: dtime
    y: ccd_temp
    device: 'ccd_temp.ps/vcps'
    symbol_size: 1
-   axis_label_size: 1
+   axis_title_size: 1.5
+   axis_num_size: 1.5
 
 # dac vs time plot
 dac:
@@ -90,15 +93,15 @@ dac:
      - ~
      - ~
    min_y_size: 10
-   xtitle: 'Seconds from Radmon disable'
+   xtitle: 'Hours from Radmon disable'
    ytitle: 'TEC DAC Control Level'
    randomize_unit: 1
    x: dtime
    y: dac
    device: 'dac.ps/vcps'
    symbol_size: .5
-   axis_label_size: 1
-   axis_title_size: 1
+   axis_num_size: 1.5
+   axis_title_size: 1.5
 
 # dac vs dtemp plot
 dac_vs_dtemp:
@@ -131,8 +134,8 @@ dac_vs_dtemp:
           linestyle: dashed
    device: 'dacvsdtemp.ps/vcps'
    symbol_size: .5
-   axis_label_size: 1
-   axis_title_size: 1
+   axis_num_size: 1.5
+   axis_title_size: 1.5
 
 
 

@@ -275,8 +275,8 @@ sub plot_health{
 # and let's defined time t0
 	my $tzero = $datapdl{time}->min;
 	
-# let's define a new delta time
-	$datapdl{dtime} = $datapdl{time} - $tzero;
+# let's define a new delta time, dtime in hours
+	$datapdl{dtime} = ($datapdl{time} - $tzero)/(60*60);
 	
 #    print $datapdl{dtime}->(10);
 	$datapdl{dtemp} = $datapdl{aca_temp} - $datapdl{ccd_temp};
@@ -341,6 +341,8 @@ sub plot_health{
 	
 	$plot_helper->plot( 'dac_vs_dtemp' );
 	
+#	$plot_helper->plot( 'dac38fit' );
+
     }	
     
 
@@ -479,12 +481,13 @@ sub new{
 sub make_plot_summary{
 
     my $arg_in = shift;
-    my $y_type = $arg_in->{y_type};
-    my $x_type = $arg_in->{x_type};
+    my $y_type = $arg_in->{plot_config}->{y};
+    my $x_type = $arg_in->{plot_config}->{x};
     my $data_ref = $arg_in->{data_array};
     my @colorlist = @{$arg_in->{color_array}};
-    my $axis_label_size = $arg_in->{axis_label_size};
-      
+    my $axis_num_size = $arg_in->{plot_config}->{axis_num_size};
+    my $axis_title_size = $arg_in->{plot_config}->{axis_title_size};
+
     my @data_plot_array;
 
     my $starttime;
@@ -535,7 +538,7 @@ sub make_plot_summary{
 #	}
 
 
-	push @data_plot_array, ( charsize => { axis => $axis_label_size } );
+	push @data_plot_array, ( charsize => { axis => $axis_num_size, title => $axis_title_size } );
 	
 	my @yvalue = [ $ymin, $ymin ];
 	my @xvalue = [ $xmin, $xmax ];
@@ -588,12 +591,16 @@ sub make_plot_summary{
 sub make_plot_a_vs_b{
 
     my $arg_in = shift;
-    my $a = $arg_in->{y_type};
-    my $b = $arg_in->{x_type};
+    my $curr_config = $arg_in->{plot_config};
+    my $a = $arg_in->{plot_config}->{y};
+    my $y_type = $a;
+    my $b = $arg_in->{plot_config}->{x};
+    my $x_type = $b;
     my $data_ref = $arg_in->{data_array};
     my @colorlist = @{$arg_in->{color_array}};
-    my $symbol_size = $arg_in->{symbol_size};
-    my $axis_label_size = $arg_in->{axis_label_size};
+    my $symbol_size = $arg_in->{plot_config}->{symbol_size};
+    my $axis_num_size = $arg_in->{plot_config}->{axis_num_size};
+    my $axis_title_size = $arg_in->{plot_config}->{axis_title_size};
 
     my @data_plot_array;
 
@@ -615,6 +622,17 @@ sub make_plot_a_vs_b{
         my @ordered_obsid = @{$datadir->{ordered_obsid}};
 	my %obsid_idx = %{$datadir->{obsid_idx}};
 	my %datapdl = %{$datadir->{pdl}};
+	my $y_pdl = zeroes($datapdl{$y_type});
+	if (defined $curr_config->{randomize_unit}){
+	    my $random_unit = $curr_config->{randomize_unit};
+	    my $random = random($datapdl{$y_type});
+	    my $rpdl = ($datapdl{$y_type} - ($random_unit/2)) + ($random * $random_unit);
+	    $y_pdl = $rpdl;
+	}
+	else{
+	    $y_pdl = $datapdl{$y_type};
+	}	     
+
 	for my $obs_num ( 0 ... $#ordered_obsid ){
 	    my $obsid = $ordered_obsid[$obs_num];
 	    next unless ( $obsid_idx{$obsid}->nelem > 0);
@@ -627,14 +645,13 @@ sub make_plot_a_vs_b{
 		$coloridx = ($dir_num) % scalar(@colorlist);
 	    }
 	    my $color = $colorlist[$coloridx];
-	    push @data_plot_array , (
-				     'x' => [@xvalue],
-				     'y' => $datapdl{$a}->($obsid_idx{$obsid}),
+	    push @data_plot_array , ('x' => [@xvalue] ,
+				     'y' => $y_pdl->($obsid_idx{$obsid}),
 				     color => { symbol => $color },
-				     charsize => {symbol => 1, title => 1},
+				     charsize => {symbol => $symbol_size, title => $axis_title_size, axis => $axis_num_size },
 				     plot => 'points',
 				     );
-
+	    
 	}
 
 #	$obsid_count += scalar(@ordered_obsid);
@@ -694,35 +711,22 @@ sub plot{
     my $x_type = $curr_config->{x};
     my $y_type = $curr_config->{y};
 
-    if (defined $curr_config->{randomize_unit}){
-	my $random_unit = $curr_config->{randomize_unit};
-#	print "random unit is $random_unit \n";
-	for my $data_dir (@{$data_ref}){
-	    my $y_pdl = $data_dir->{pdl}->{$y_type};
-	    my $random = random($y_pdl);
-	    my $rpdl = ($y_pdl - ($random_unit/2)) + ($random * $random_unit);
-	    $data_dir->{pdl}->{$y_type} = $rpdl;
-	}
-    }
     
     # adjust undefined limits if minimum x or y defined 
 
     if ( $curr_config->{mode} eq 'summary'){
-	push @pgs_array, make_plot_summary({ y_type => $y_type,
-					     x_type => $x_type,
+	push @pgs_array, make_plot_summary({ 
+	                                     plot_config => $curr_config,
 					     data_array => $data_ref,
 					     color_array => $self->config()->{task}->{allowed_colors},
-					     axis_label_size => $curr_config->{axis_label_size},
 					 });
 
     }
     else{
 
-	push @pgs_array, make_plot_a_vs_b({ y_type => $y_type, 
-					    x_type => $x_type, 
+	push @pgs_array, make_plot_a_vs_b({ 
+	                                    plot_config => $curr_config,
 					    data_array => $data_ref, 
-					    symbol_size => $curr_config->{symbol_size},
-					    axis_label_size => $curr_config->{axis_label_size},
 					    color_array => $self->config()->{task}->{allowed_colors} 					
 					});
 	

@@ -1,0 +1,55 @@
+# Default config file for install_plots.pl
+
+--- task
+---
+
+base_url: http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots/
+
+loadconfig:
+ - /proj/gads6/jeanproj/perigee_health_plots/plot_summary.yaml
+
+# source plot ext
+source_plot_ext: ps
+
+# source plots
+source_plots:
+ - aca_temp.ps
+ - ccd_temp.ps
+ - dac.ps
+ - dacvsdtemp.ps
+
+
+# destination plots
+dest_plots:
+ - aca_temp.gif
+ - ccd_temp.gif
+ - dac.gif
+ - dacvsdtemp.gif
+
+# plot_folder index.html
+pass_dir_index: index.html
+
+# master index
+master_index: index.html
+
+month_map:
+  1: January
+  2: February
+  3: March
+  4: April
+  5: May
+  6: June
+  7: July
+  8: August
+  9: September
+  10: October
+  11: November
+  12: December
+
+#polyfit:
+#  dac:
+#     x: dtemp
+#     y: dac 
+#     result: dac_vs_dtemp_fit
+#     dtemp: 38
+#

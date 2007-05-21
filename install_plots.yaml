@@ -1,0 +1,137 @@
+# Default config file for install_plots.pl
+
+--- task
+---
+
+#pg_to_html_colors:
+#   red: Red
+#   green: Green
+#   blue: Cornflower Blue
+#   magenta: Magenta3
+#   cyan: Cyan2
+#   orange: Sienna2
+#   purple: Violet
+
+pg_to_html_colors:
+   red: #FF0000
+   green: #00FF00
+   blue: #0000FF
+   magenta: #FF00CC
+   cyan: #00FFFF
+   orange: #E66C2C
+   purple: #8D38C9
+
+# source plot ext
+source_plot_ext: ps
+
+#pass num (default number to go back and make gifs etcs
+passnum: 15
+
+loadconfig:
+ - /proj/gads6/jeanproj/perigee_health_plots/plot_summary.yaml
+
+stylesheet: /mta/ASPECT/aspect.css
+
+
+# source plots
+source_plots:
+ - aca_temp.ps
+ - ccd_temp.ps
+ - dac.ps
+ - dacvsdtemp.ps
+ - legend.ps
+
+
+# destination plots
+dest_plots:
+ - aca_temp.gif
+ - ccd_temp.gif
+ - dac.gif
+ - dacvsdtemp.gif
+ - legend.gif
+
+# plot_folder index.html
+pass_dir_index: index.html
+
+# master index
+master_index: index.html
+
+month_map:
+  01: January
+  02: February
+  03: March
+  04: April
+  05: May
+  06: June
+  07: July
+  08: August
+  09: September
+  10: October
+  11: November
+  12: December
+
+# For pass text, available variables include
+# $tstart, $tstop
+# 5 element array of images in @dest_plots
+# $nav_links
+pass_text: >
+   $nav_links
+   <H1>ACA Perigee Pass Health Indicators</H1>
+   <H3>Perigee Pass Interval</H3>
+   <TABLE BORDER=1>
+   <TR><TH>TSTART</TH><TH>TSTOP</TH></TR>
+   <TR><TD>${tstart}</TD><TD>${tstop}</TD></TR> 
+   </TABLE>
+   <P>ACA Housing Temperature, CCD Temperature, and DAC Control
+   Level from Header 3 ACA telemetry gathered during a perigee pass.
+   The following are data from the perigee pass that occurred from
+   the TSTART to TSTOP indicated. Each engineering obsid is plotted in a
+   different color.
+   <H3>Health Plots</H3>
+   <A NAME="plot"></A>
+   <TABLE>
+   <TR>
+   <TD><IMG SRC="$dest_plots[0]"></TD>
+   <TD><IMG SRC="$dest_plots[1]"></TD>
+   <TD><TABLE><TR><TD>Obsid&nbsp;Colors</TD></TR><TR><TD><IMG SRC=\"$dest_plots[4]\"></TD></TR></TABLE></TD>
+   </TR>
+   <TR>
+   <TD><IMG SRC=\"$dest_plots[2]\"></TD>
+   <TD><IMG SRC=\"$dest_plots[3]\"></TD>
+   </TR>
+   </TABLE>
+
+
+
+# available variables
+# $month_name, $year
+# array of 4 images at @dest_plots
+# string for current url: $summ_string
+month_text: >
+   $nav_links
+   <H3>$month_name $year, ACA Health Summary Plots</H3>
+   <P>Summary
+   plots of ACA housing temperature, CCD temperature, and DAC control
+   level. Data is only available during perigee passes, so each point on
+   these summary plots represents the mean of the aforementioned
+   indicators during a perigee pass. Plots for single passes are
+   available from the links below.
+   <BR />
+   <TABLE>
+   <TR><TD><IMG SRC="${summ_string}/$dest_plots[0]"></TD><TD><IMG SRC="${summ_string}/$dest_plots[1]"></TD></TR>
+   <TR><TD><IMG SRC="${summ_string}/$dest_plots[2]"></TD><TD><IMG SRC="${summ_string}/$dest_plots[3]"></TD></TR>
+   </TABLE>
+   <BR />
+   <P>Plots for each perigee pass summarized above are available from the links below.
+   $pass_table
+
+
+main_text: >
+   <H2>ACA Perigee Health Plots</H2>
+   <P>Plots for trending ACA Housing Temperature, CCD Temperature, and DAC Control Level as
+   determined from Header 3 Telemetry. The table
+   below contains links to the summary pages/plots for each month.
+   From these pages, links to pages with individual pass plots are available.
+   <BR />
+   $nav_table
+

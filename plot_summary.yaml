@@ -49,6 +49,8 @@ aca_temp:
    y: aca_temp
    device: 'aca_temp.ps/vcps'
    symbol_size: 1   
+   axis_num_size: 1.5
+   axis_title_size: 1.5
    
 # ccd temp vs time plot
 ccd_temp:
@@ -66,6 +68,9 @@ ccd_temp:
    y: ccd_temp
    device: 'ccd_temp.ps/vcps'
    symbol_size: 1
+   axis_num_size: 1.5
+   axis_title_size: 1.5
+
 
 # dac vs time plot
 dac:
@@ -84,6 +89,9 @@ dac:
    y: dac
    device: 'dac.ps/vcps'
    symbol_size: .5
+   axis_num_size: 1.5
+   axis_title_size: 1.5
+
 
 # dac vs dtemp plot
 dac_vs_dtemp:
@@ -116,8 +124,28 @@ dac_vs_dtemp:
           linestyle: dashed
    device: 'dacvsdtemp.ps/vcps'
    symbol_size: .25
+   axis_num_size: 1.5
+   axis_title_size: 1.5
 
 
-
+## dac at dtemp 38
+#dac38fit:
+#   mode: polyfit
+#   # plot limits
+#   lims:
+#     - ~
+#     - ~
+#     - ~
+#     - ~
+#   xtitle: 'Days from first pass in group'
+#   ytitle: 'DAC level to maintain dtemp 38'
+#   x: time
+#   y: dac_38_fit
+#   device: 'dac38fit.ps/vcps'
+#   symbol_size: .25
+#   axis_num_size: 1.5
+#   axis_title_size: 1.5
+#
+#
 
 

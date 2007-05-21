@@ -1,0 +1,8 @@
+--- task
+---
+
+result: warning.yaml
+
+telem_threshold:
+  dac: 500
+

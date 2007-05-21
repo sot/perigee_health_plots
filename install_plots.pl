@@ -21,6 +21,9 @@ use CGI qw/ :standard /;
 use Chandra::Time;
 
 use Hash::Merge qw( merge );
+# combine config
+Hash::Merge::set_behavior( 'RIGHT_PRECEDENT' );
+
 
 my %opt = ();
 
@@ -64,11 +67,16 @@ else{
     %task_config = YAML::LoadFile( "${SHARE}/install_plots.yaml");
 }
 
-# combine config
-Hash::Merge::set_behavior( 'RIGHT_PRECEDENT' );
+if (defined $task_config{task}->{loadconfig}){
+    for my $file (@{$task_config{task}->{loadconfig}}){
+        my %newconfig = YAML::LoadFile("$file");
+        %task_config = %{merge( \%task_config, \%newconfig )};
+    }
+}
 
 my %config = %{ merge( \%share_config, \%task_config )};
-
+#use Data::Dumper;
+#print Dumper %config;
 
 
 if ( defined $config{general}->{pass_dir} ){
@@ -98,7 +106,9 @@ my %time_tree;
 
 my @passes = glob("${WORKING_DIR}/????:*");
 
-for my $pass ( @passes ){
+for my $pass_idx ( 0 ... $#passes ){
+
+    my $pass = $passes[$pass_idx];
 
     my $curr_pass = "${pass}/$pass_time_file";
     my $pass_times = parse_table($curr_pass);
@@ -140,19 +150,36 @@ for my $pass ( @passes ){
 	my $index = new CGI;
 	my $out_string;
 
-	$out_string .= sprintf( $index->start_html('ACA Perigee Pass Health Indicators'));
-	$out_string .= sprintf( "<br>\n" );
-	$out_string .= sprintf( $index->h1('ACA Perigee Pass Health Indicators'));
-	$out_string .= sprintf( "<br>\n" );
-	$out_string .= sprintf( "<TABLE>\n");
-	$out_string .= sprintf( "<TR><TH>TSTART</TH><TH>TSTOP</TH></TR>\n");
-	$out_string .= sprintf( "<TR><TD>$tstart</TD><TD>$tstop</TD></TR>\n");
-	$out_string .= sprintf( "</TABLE>\n");
-	$out_string .= sprintf( "<TABLE>\n");
-	$out_string .= sprintf( "<TR><TD><IMG SRC=\"$dest_plots[0]\"></TD><TD><IMG SRC=\"$dest_plots[1]\"></TD></TR>");
-	$out_string .= sprintf( "<TR><TD><IMG SRC=\"$dest_plots[2]\"></TD><TD><IMG SRC=\"$dest_plots[3]\"></TD></TR>");
-	$out_string .= sprintf( "</TABLE>");
-	$out_string .= sprintf( "<IMG SRC=\"$dest_plots[4]\">");
+	$out_string .= sprintf( $index->start_html(-title=>'ACA Perigee Pass Health Indicators',
+						   -style=>{'src'=> $config{task}->{stylesheet}},
+							    ));
+
+	my $base_url = $config{general}->{base_url};
+
+	my $nav_links;
+
+	$nav_links .= "<A HREF=\"${base_url}\">UP</A><br />\n";
+
+	if ($pass_idx > 0){
+	    my $prev = $passes[$pass_idx - 1];
+	    my $prev_pass = "${prev}/$pass_time_file";
+	    my $prev_pass_times = parse_table($prev_pass);
+	    my $prev_tstart = $prev_pass_times->[0]->{TSTART};
+	    $nav_links .= "<A HREF=\"${base_url}/${prev_tstart}\">PREV</A><br />\n";
+	    
+	}
+
+
+	if ($pass_idx < $#passes){
+	    my $next = $passes[$pass_idx + 1];
+	    my $next_pass = "${next}/$pass_time_file";
+	    my $next_pass_times = parse_table($next_pass);
+	    my $next_tstart = $next_pass_times->[0]->{TSTART};
+	    $nav_links .= "<A HREF=\"${base_url}/${next_tstart}\">NEXT</A><br />\n";
+	}
+
+	# the eval substitutes in $nav_links, base_url, tstart, tstop, and @dest_plots
+	$out_string .= eval("<<EOF\n$config{task}->{pass_text}\nEOF\n" );
 
 	$out_string .= sprintf( $index->end_html );
 	
@@ -214,46 +241,76 @@ for my $summ_month ( @summaries ){
 }
 
 
-my %month_map = %{$config{general}->{month_map}};
+my %month_map = %{$config{task}->{month_map}};
 
 my @year_list = sort (keys %time_tree);
 my @year_links = map { $_ . ".html" } @year_list;
 
 #make_nav_page( 'index', \@year_links, $config{general}->{base_dir}, $WEB_DIR);
-my $main_page = "<HTML><HEAD></HEAD><BODY><br />";
-$main_page .= "<H2>ACA Perigee Health Plots</H2><br />";
-$main_page .= "<TABLE BORDER=1><TR>";
+
+my $index = new CGI;
+
+my $main_page .= sprintf( $index->start_html(-title=>'ACA Perigee Health Plots',
+					   -style=>{'src'=> $config{task}->{stylesheet}},
+					   ));
+
+#$main_page .= "<H2>ACA Perigee Health Plots</H2>";
+
+
+
+my $nav_table;
+
+$nav_table .= "<TABLE BORDER=1><TR>";
 
 for my $year (sort (keys %time_tree)){
-    $main_page .= "<TH>$year</TH>";
+    $nav_table .= "<TH>$year</TH>";
     my @month_list = sort keys %{$time_tree{$year}};
     my @month_links = map { $month_map{$_} . ".html" } @month_list;
 #    make_nav_page( $year, \@month_links, $config{general}->{base_dir}, $WEB_DIR);
-    for my $month (@month_list){
+    for my $month_idx (0 .. $#month_list){
+	my $month = $month_list[$month_idx];
+	my ($prev_month, $next_month, $prev_string, $next_string);
+	if ($month_idx > 0){
+	    $prev_month = $month_list[$month_idx - 1];
+	    $prev_string = $config{general}->{base_url} . sprintf( "%s-%02d.html", $year, $prev_month );
+	}
+	if ($month_idx < $#month_list){
+	    $next_month = $month_list[$month_idx + 1];
+	    $next_string = $config{general}->{base_url} . sprintf( "%s-%02d.html", $year, $next_month );
+	}
 	my $summ_string = sprintf( "%s-%02d", $year, $month);
 #	print "going through month list $month \n";
 	make_nav_page({
+	    body => $config{task}->{month_text},
 	    month_num => $month,
 	    month_name => $month_map{$month}, 
+	    prev_month => $prev_string,
+	    next_month => $next_string,
 	    year => $year,
 	    passes => $time_tree{$year}->{$month}, 
-	    base_dir => $config{general}->{base_url}, 
+	    base_url => $config{general}->{base_url}, 
 	    web_dir => $WEB_DIR, 
 	    plots => \@dest_plots});
-	$main_page .= "<TD><A HREF=\"${summ_string}.html\">$month_map{$month}</A></TD>";
+	$nav_table .= "<TD><A HREF=\"${summ_string}.html\">$month_map{$month}</A></TD>";
 
 #	print "for year $year and month $month :\n";
 #	for my $pass (@{$time_tree{$year}->{$month}}){
 #	    print "pass is $pass \n";
 #	}
     }
-    $main_page .= "</TR>";
+    $nav_table .= "</TR>";
 }
-$main_page .= "</TABLE></BODY></HTML>";
+$nav_table .= "</TABLE></BODY></HTML>";
 #print $main_page;
-my $index = io("${WEB_DIR}/index.html");
+
+# eval substitues in nav_table
+
+$main_page .= eval("<<EOF\n$config{task}->{main_text}\nEOF\n" );
+#$main_page .= $config{task}->{main_text};
+
+my $index_file = io("${WEB_DIR}/index.html");
 unless( $opt{dryrun}){
-    $index->print($main_page);
+    $index_file->print($main_page);
 }
 else{
     print "Would have made ${WEB_DIR}/index.html \n";
@@ -278,6 +335,7 @@ sub usage
 
 sub make_nav_page{
     my $arg_in = shift;
+    my $body = $arg_in->{body};
     my $month_num = $arg_in->{month_num};
     my $month_name = $arg_in->{month_name};
     my $year = $arg_in->{year};
@@ -285,26 +343,51 @@ sub make_nav_page{
     my $base_dir = $arg_in->{base_url};
     my $web_dir = $arg_in->{web_dir};
     my @dest_plots = @{$arg_in->{plots}};
+    my $prev_month = $arg_in->{prev_month};
+    my $next_month = $arg_in->{next_month};
+
+    my $index = new CGI;
+
     
     my $summ_string = sprintf( "%s-%02d", $year, $month_num);
 
-    my $out_string = "<HTML><HEAD></HEAD><BODY><br />\n";
-    $out_string .= "<H3>$month_name Summary Statistics</H3>\n"; 
-#    print "make ${name}.html with contents \n";
+#    my $out_string = "<HTML><HEAD></HEAD><BODY><br />\n";
+    my $out_string = sprintf( $index->start_html(-title=>'ACA health Summary Plots',
+						 -style=>{'src'=> $config{task}->{stylesheet}},
+						 ));
 
-    for my $entry (@{$passes}){
-	$out_string .= "<A HREF=\"${base_dir}/${entry}\">${entry}</A><br />\n";
+    my $nav_links;
+    
+    $nav_links .= "<A HREF=\"${base_dir}\">UP TO MAIN</A><br />\n";
+
+    if (${prev_month}){
+	$nav_links .= "<A HREF=\"${prev_month}\">PREVIOUS MONTH</A><br />\n";
+    }
+    if (${next_month}){
+	$nav_links .= "<A HREF=\"${next_month}\">NEXT MONTH</A><br />\n";
     }
 
-    $out_string .= sprintf( "<TABLE>\n");
-    $out_string .= sprintf( "<TR><TD><IMG SRC=\"${summ_string}/$dest_plots[0]\"></TD><TD><IMG SRC=\"${summ_string}/$dest_plots[1]\"></TD></");
-    $out_string .= sprintf( "<TR><TD><IMG SRC=\"${summ_string}/$dest_plots[2]\"></TD><TD><IMG SRC=\"${summ_string}/$dest_plots[3]\"></TD></TR>");
-    $out_string .= sprintf( "</TABLE>");
+    my $pass_table;
+    $pass_table .= "<TABLE BGCOLOR=\"white\">\n";
 
+    for my $pass_idx (0 .. scalar(@{$passes})-1){
+	my @colorlist = @{$config{task}->{allowed_colors}};
+	my %colormap = %{$config{task}->{pg_to_html_colors}};
+	my $entry = $passes->[$pass_idx];
+	my $pg_color_idx = ($pass_idx) % scalar(@colorlist);
+        my $pg_color = $colorlist[$pg_color_idx];
+	my $color = $colormap{$pg_color};
+	$pass_table .= "<TR>";
+	$pass_table .= "<TD BGCOLOR=\"$color\" WIDTH=\"25\">&nbsp;</TD>\n";
+	$pass_table .= "<TD><A HREF=\"${base_dir}/${entry}/index.html#plot\">${entry}</A></TD>\n";
+	$pass_table .= "</TR>";
+    }
+    $pass_table .= "</TABLE>\n";
     
-    $out_string .= "<br />";
+    # eval substitudes nav_links and pass_table
+    $out_string .= eval("<<EOF\n$body\nEOF\n" );
     
-    $out_string .= "</BODY></HTML>\n";
+    $out_string .= sprintf( $index->end_html );
     
     my $out_file = io("${WEB_DIR}/${summ_string}.html");
     unless( $opt{dryrun} ){
