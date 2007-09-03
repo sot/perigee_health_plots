@@ -107,14 +107,21 @@ for my $dir (@todo_directories){
     if ($opt{verbose}){
 	print "parsing telemetry for $dir \n";
     }
-    my $result = perigee_parse({ dir => $dir,
-				 ska => $SKA,
-				 time_interval => $config{task}->{time_interval},
-				 min_samples => $config{task}->{min_samples},
-				 column_config  => $config{general}->{column_config},
-				 pass_time_file => $config{general}->{pass_time_file},
-			     });
-
+    my $result;
+    eval{
+	perigee_parse({ dir => $dir,
+			ska => $SKA,
+			time_interval => $config{task}->{time_interval},
+			min_samples => $config{task}->{min_samples},
+			column_config  => $config{general}->{column_config},
+			pass_time_file => $config{general}->{pass_time_file},
+		    });
+    };
+    if ($@){
+	print "Could not parse telem in $dir \n";
+	print "$@ \n";
+	next;
+    }
 
 
     # let's find points outside the expected ranges from the median
@@ -214,6 +221,9 @@ sub perigee_parse{
 # Create a ccdm telemetry object and a hash of aca objects (one for each slot)
     my @ccdmcols = ('time', 'quality', 'cobsrqid' );
     my @ccdm_file_list = glob("${DIR}/ccdm*gz");
+    unless (scalar(@ccdm_file_list)){
+	croak "No ccdm files found.  Could not parse obsids.\n";
+    }
     my $ccdm = Telemetry::Interval->new({ file_list => \@ccdm_file_list, columns => \@ccdmcols})->combine_telem();
 
 

@@ -15,7 +15,7 @@ use YAML;
 
 use Data::ParseTable qw( parse_table );
 
-use CGI qw/ :standard /;
+#use CGI qw/ :standard /;
 use File::Path qw/ mkpath rmtree /;
 
 use Chandra::Time;
@@ -44,8 +44,8 @@ my $SKA = $ENV{SKA} || '/proj/sot/ska';
 my $TASK = 'perigee_health_plots';
 my $SHARE = "$ENV{SKA}/share/${TASK}";
 
-require "${SHARE}/PlotHealth.pm";
-
+#require "${SHARE}/PlotHealth.pm";
+require "./PerigeeData.pm";
 
 my %share_config;
 if ( defined $opt{shared_config}){
@@ -135,22 +135,42 @@ if ($opt{verbose}){
 
 for my $month (@month_list){
 
+    my @passlist = @{$time_tree{$month}};
+
     unless( $opt{dryrun}){
 	mkpath( "${summary_dir}/${month}", 1);
+	my $pass_list_file = "${summary_dir}/${month}/$config{task}->{pass_file}";
+	print "file is $pass_list_file \n";
+	io($pass_list_file)->print(join("\n", @passlist));
+#	use Data::Dumper;
+#	print Dumper $pass_list_file;
+#	for my $line (@passlist){
+#	    $pass_list_file->print("$line \n");
+#	}
+
     }
+
+
 
 #    my %config = YAML::LoadFile( "plot_summary.yaml" );
 #    # override plot destination
     $config{task}->{plot_dir} = "${summary_dir}/${month}";
 #    # directories to summarize
-    my @passlist = @{$time_tree{$month}};
 
-    my $plothealth = PlotHealth->new({ config => \%config,
-				       opt => \%opt,
-				       passlist => \@passlist,
-				  });
 
-    $plothealth->make_plots();
+    my $month_data = PerigeeData->new({ config => \%config,
+					opt => \%opt,
+					passlist => \@passlist})->process;
+
+    if (defined $config{task}->{polyfit}){
+	unless( $opt{dryrun}){
+	    my $fit_file = "${summary_dir}/${month}/$config{task}->{fit_file}";
+	    io($fit_file)->print(YAML::Dump($month_data->fit_result()));
+	}
+    }
+    
+    $month_data->plot_health();
+
 }
 
 

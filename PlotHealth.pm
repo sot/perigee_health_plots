@@ -224,6 +224,7 @@ sub plot_health{
 
     my @data_array;
 
+
     for my $dir (@{$dirlist}){
 #	print "dir is $dir \n";
 	
@@ -232,7 +233,15 @@ sub plot_health{
 # read in data from YAML file
 #	my $dump = new XML::Dumper;
 #	my $xml = $dump->xml2pl( $xml_file );
-	my $yaml = YAML::LoadFile($yaml_file);
+	my $yaml;
+	eval{
+	    $yaml = YAML::LoadFile($yaml_file);
+	};
+	if ($@){
+	    print "Problem loading $yaml_file \n $@ \n";
+	    print "Skipping $dir \n";
+	    next;
+	}
 
 	my %data = %{$yaml->{telem}};
 	my %info = %{$yaml->{info}};
@@ -252,7 +261,7 @@ sub plot_health{
 	if ($@){
 	    croak("$@");
 	}
-
+	    
     
 #let's figure out how many obsids are present
 	my @uniqobsid = $datapdl{obsid}->uniq->list;
@@ -287,8 +296,42 @@ sub plot_health{
 			ordered_obsid => \@ordered_obsid,
 			obsid_idx => \%obsid_idx,
 			);
-	
 
+
+#	use PDL::Fit::Polynomial;
+#	use PDL::NiceSlice;
+## let's fit a polynomial to the pass
+#	if (defined $config->{task}->{polyfit}){
+#	    my $xdata = $datapdl{$config->{task}->{polyfit}->{x}};
+#	    my $data = $datapdl{$config->{task}->{polyfit}->{y}};
+#	    my ($xmean,$xrms,$xmedian,$xmin,$xmax) = $xdata->stats;
+#	    my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $data->stats;
+#	    my $order = ($config->{task}->{polyfit}->{order});
+#	    $order = $order + 1;
+#	    my $min_dx = $config->{task}->{polyfit}->{min_dx};
+#	    my ($yfit, $coeffs);
+#	    if (($xmax - $xmin) < $min_dx){
+#		my $diff = $xmax - $xmin;
+#		print "diff is $diff \n";
+#		$coeffs = pdl( $xmean, 0 );
+#	    }
+#	    else{
+#		($yfit, $coeffs) = fitpoly1d($xdata, $data, $order);
+#	    }
+##	    
+##print $yfit, "\n";
+#	    print $coeffs, "\n";
+##	    for my $fitset (keys %{$config->{task}->{polyfit}->{points}}){
+##		if (defined $config->{task}->{polyfit}->{points}->{$fitset}->{x}){
+##		    my $plug = $config->{task}->{polyfit}->{points}->{$fitset}->{x};
+##		    $dir_data{$fitset} = ($coeffs->(0)->sclr + ($coeffs->(1)->sclr * $plug) + ($coeffs->(2)->sclr * $plug * $plug));
+##		}
+##		else{
+##		    $dir_data{$fitset} = random(1)->sclr;
+##		}
+##	    }
+#	    push @{$dir_data{dac_vs_dtemp_fit}}, $coeffs->list; 
+#	}
 	push @data_array, \%dir_data;
     }
 
@@ -326,12 +369,31 @@ sub plot_health{
     else{
 	
 	my %colranges = find_pdl_ranges( \@data_array );
+
+	my $plot_helper;
+	if (defined $config->{task}->{polyfit}){
+	    
+	    my $cumul_data = concat_data({ config => $config,
+					data_array => \@data_array });
+	    
+	    $plot_helper = PlotHelper->new({ config => $config,
+					     opt => $opt,
+					     data_array => \@data_array,
+					     ranges => \%colranges,
+					     cumul_data => $cumul_data,
+					 });
 	
-	my $plot_helper = PlotHelper->new({ config => $config,
-					    opt => $opt,
-					    data_array => \@data_array,
-					    ranges => \%colranges,
-					    });
+	    
+	}
+	else{
+	    $plot_helper = PlotHelper->new({ config => $config,
+					     opt => $opt,
+					     data_array => \@data_array,
+					     ranges => \%colranges,
+					     
+					 });
+	}
+
 	
 	$plot_helper->plot( 'aca_temp' );
 	
@@ -341,12 +403,42 @@ sub plot_health{
 	
 	$plot_helper->plot( 'dac_vs_dtemp' );
 	
-#	$plot_helper->plot( 'dac38fit' );
+#	$plot_helper->plot( 'dacfit' );
+
+#	$plot_helper->plot( 'dtempfit' );
 
     }	
     
 
 }
+
+sub concat_data{
+
+    my $arg_in = shift;
+    my $data = $arg_in->{data_array};
+    my $config = $arg_in->{config};
+
+    my $polyfit = $config->{task}->{polyfit};
+
+    my $x = null;
+    my $y = null;
+
+    for my $pass (@{$data}){
+		
+	my $x_pass = $pass->{pdl}->{$polyfit->{x}};
+	my $y_pass = $pass->{pdl}->{$polyfit->{y}};
+	$x = append( $x, $x_pass);
+	$y = append( $y, $y_pass);
+    }
+
+    my %cumul_data = ( x => $x,
+		       y => $y, 
+		       name => $config->{task}->{polyfit}->{result},
+		       );
+
+    return \%cumul_data;
+}
+
 
 sub find_pdl_ranges{
 
@@ -446,6 +538,7 @@ use Class::MakeMethods::Standard::Hash(
 						       opt
 						       data_array
 						       ranges
+						       cumul_data
 						       )
                                                     ],
 				       );
@@ -471,6 +564,10 @@ sub new{
     $self->data_array($arg_in->{data_array});
     $self->ranges($arg_in->{ranges});
     $self->opt($arg_in->{opt});
+
+    if (defined $arg_in->{cumul_data}){
+	$self->cumul_data($arg_in->{cumul_data});
+    }
 
     return $self;
 
@@ -513,8 +610,6 @@ sub make_plot_summary{
 	my $coloridx = ($dir_num) % scalar(@colorlist);
 	my $color = $colorlist[$coloridx];
 
-	my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $datadir->{pdl}->{$y_type}->stats;
-
 	my $xmin = $datadir->{pdl}->{$x_type}->min;
 	my $xmax = $datadir->{pdl}->{$x_type}->max;
 
@@ -524,64 +619,69 @@ sub make_plot_summary{
 	}
 
 	my $xmid = ($xmin+$xmax)/2;
-	
-	
-#	if ($b eq 'time'){
-#	    use Chandra::Time;
-#	    my $ctime_min = Chandra::Time->new( $xmin );
-#	    my $ctime_max = Chandra::Time->new( $xmax );
-#	    my $date_min = $ctime_min->date();
-#	    my $date_max = $ctime_max->date();
-#	    print "date $date_min $date_max \n";
-#	    my $dy_min, $dy_max;
-#	    if ( $date_min ~= /(\d{4}):(\d{3}):.*)
-#	}
-
 
 	push @data_plot_array, ( charsize => { axis => $axis_num_size, title => $axis_title_size } );
+
+	# if it is a poly fit stored at the top level of the hash:
+	if (defined $datadir->{$y_type}){
+	    my $y = $datadir->{$y_type};
+	    my @yvalue = [ $y ];
+	    my @xvalue = [ $xmid ];
+	    push @data_plot_array, (
+				    'x' => [ @xvalue],
+				    'y' => [ @yvalue],
+				    color => { symbol => $color },
+				    plot => 'points',
+				    );
+
+	}
+	# if we really want poly fit.
+	else{
+
+	    my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $datadir->{pdl}->{$y_type}->stats;	
 	
-	my @yvalue = [ $ymin, $ymin ];
-	my @xvalue = [ $xmin, $xmax ];
-	push @data_plot_array , (
-				 'x' => [@xvalue],
-				 'y' => [@yvalue],
-				 color => { line => 'black' },
-				 plot => 'line',
-				 );
+	    my @yvalue = [ $ymin, $ymin ];
+	    my @xvalue = [ $xmin, $xmax ];
+	    push @data_plot_array , (
+				     'x' => [@xvalue],
+				     'y' => [@yvalue],
+				     color => { line => 'black' },
+				     plot => 'line',
+				     );
 	
-	@yvalue = [ $ymax, $ymax ];
-	@xvalue = [ $xmin, $xmax ];
-	push @data_plot_array , (
-				 'x' => [@xvalue],
-				 'y' => [@yvalue],
-				 color => { line => 'black' },
-				 plot => 'line',
-				 );
-
-	@yvalue = [ $ymean ];
-	@xvalue = [ $xmid ];
-	push @data_plot_array , (
-				 'x' => [@xvalue],
-				 'y' => [@yvalue],
-				 color => { symbol => $color },
-				 plot => 'points',
-				 );
-
-
-	@yvalue = [ $ymin, $ymax ];
-	@xvalue = [ $xmid, $xmid ];
-	push @data_plot_array , (
-				 'x' => [@xvalue],
-				 'y' => [@yvalue],
-				 color => { line => $color },
-				 plot => 'line',
-				 );
-
-
-
+	    @yvalue = [ $ymax, $ymax ];
+	    @xvalue = [ $xmin, $xmax ];
+	    push @data_plot_array , (
+				     'x' => [@xvalue],
+				     'y' => [@yvalue],
+				     color => { line => 'black' },
+				     plot => 'line',
+				     );
+	    
+	    @yvalue = [ $ymean ];
+	    @xvalue = [ $xmid ];
+	    push @data_plot_array , (
+				     'x' => [@xvalue],
+				     'y' => [@yvalue],
+				     color => { symbol => $color },
+				     plot => 'points',
+				     );
+	    
+	    
+	    @yvalue = [ $ymin, $ymax ];
+	    @xvalue = [ $xmid, $xmid ];
+	    push @data_plot_array , (
+				     'x' => [@xvalue],
+				     'y' => [@yvalue],
+				     color => { line => $color },
+				     plot => 'line',
+				     );
+	    
+	    
+	    
+	}
+	
     }
-
-    
     
     return @data_plot_array;
 
@@ -686,7 +786,9 @@ sub plot{
     }	
     else{
 	if (defined $config->{task}->{plot_dir}){
+	    print $config->{task}->{plot_dir}, " ", $curr_config->{device}, "\n";
 	    $device = $config->{task}->{plot_dir} . "/" . $curr_config->{device};
+
 	}
 	else{
 	    $device = $curr_config->{device};
@@ -723,7 +825,7 @@ sub plot{
 
     }
     else{
-
+	
 	push @pgs_array, make_plot_a_vs_b({ 
 	                                    plot_config => $curr_config,
 					    data_array => $data_ref, 
@@ -735,6 +837,9 @@ sub plot{
 		y_range => $colrange->{$y_type},
 		x_range => $colrange->{$x_type},
 		oplot => $curr_config->{oplot},
+		data => $data_ref,
+		cumul_data => $self->cumul_data(),
+		config => $self->config(),
 	    });
 	}
     }
@@ -761,29 +866,105 @@ sub plot{
 
 sub make_oplot{
     my $arg_in = shift;
+    my $data = $arg_in->{data};
     my @oplot = @{$arg_in->{oplot}};
     my $y_range = $arg_in->{y_range};
     my $x_range = $arg_in->{x_range};
+    my $cumul_data = $arg_in->{cumul_data};
+    my $config = $arg_in->{config};
     
     my @plot_array;
+
+#    use Math::Polynomial;
     
     for my $element (@oplot){
 	if ($element->{type} eq 'poly'){
 	    my @poly = @{$element->{poly}};
 	    my $npoints = $element->{npoints};
 	    my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
-	    my $yvals = $poly[0] + $xvals*$poly[1] + ($xvals*$xvals)*$poly[2];
+#	    my $yvals = $poly[0] + $xvals*$poly[1] + ($xvals*$xvals)*$poly[2];
+	    my $yvals = 0;
+	    for my $i (0 .. $#poly){
+		$yvals += $poly[$i] * ( $xvals**$i );
+	    }
 	    # Prediction
 	    push @plot_array, ('x' => [ $xvals->list ],
-			   'y' => [ $yvals->list ],
+			       'y' => [ $yvals->list ],
 			       color => $element->{color},
 			       options => $element->{options},
 			       plot => $element->{plot_type},
 			       );
 	    
 	}
+	if ($element->{type} eq 'polyfit'){
+	    my $polyname = $element->{polyname};
+
+	    eval 'use PDL::Fit::Polynomial';
+	    eval 'use PDL::NiceSlice';
+## let's fit a polynomial to the pass
+#	    use Data::Dumper;
+#	    print Dumper $cumul_data;
+	    my $xdata = $cumul_data->{x};
+	    my $ydata = $cumul_data->{y};
+	    my ($xmean,$xrms,$xmedian,$xmin,$xmax) = $xdata->stats;
+	    my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $ydata->stats;
+	    my $order = ($config->{task}->{polyfit}->{order});
+	    $order = $order + 1;
+	    my $min_dx = $config->{task}->{polyfit}->{min_dx};
+	    my ($yfit, $coeffs);
+	    if (($xmax - $xmin) < $min_dx){
+		my $diff = $xmax - $xmin;
+#		print "diff is $diff \n";
+#		$coeffs = pdl( $xmean, 0 );
+	    }
+	    else{
+		($yfit, $coeffs) = fitpoly1d($xdata, $ydata, $order);
+		my @poly = $coeffs->list;
+		my $npoints = $element->{npoints};
+		my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
+		my $yvals = 0;
+		for my $i (0 .. $#poly){
+		    $yvals += $poly[$i] * ($xvals**$i);
+		}
+#		# Prediction
+		push @plot_array, ('x' => [ $xvals->list ],
+				   'y' => [ $yvals->list ],
+				   color => $element->{color},
+				   options => $element->{options},
+				   plot => $element->{plot_type},
+				   );
+		
+		
+		
+	    }
+##	    
+##print $yfit, "\n";
+#	    print $coeffs, "\n";
+###	    for my $fitset (keys %{$config->{task}->{polyfit}->{points}}){
+###		if (defined $config->{task}->{polyfit}->{points}->{$fitset}->{x}){
+###		    my $plug = $config->{task}->{polyfit}->{points}->{$fitset}->{x};
+###		    $dir_data{$fitset} = ($coeffs->(0)->sclr + ($coeffs->(1)->sclr * $plug) + ($coeffs->(2)->sclr * $plug * $plug));
+###		}
+###		else{
+###		    $dir_data{$fitset} = random(1)->sclr;
+###		}
+###	    }
+##	    push @{$dir_data{dac_vs_dtemp_fit}}, $coeffs->list; 
+#	    
+#
+##	    for my $dir_num ( 0 ... scalar(@{$data})-1 ){
+##		my $datadir = $data->[$dir_num];
+#		#my @ordered_obsid = @{$datadir->{ordered_obsid}};
+#		#my %obsid_idx = %{$datadir->{obsid_idx}};
+#		#my %datapdl = %{$datadir->{pdl}};
+#		#my $y_pdl = zeroes($datapdl{$y_type});
+#		my @poly = @{$datadir->{$polyname}};
+#	    }
+#
+#	}
+
+	}
     }
-    
     return  @plot_array;
 }
 

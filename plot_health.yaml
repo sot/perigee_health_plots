@@ -40,6 +40,20 @@ data_columns:
  - ccd_temp
  - dac
 
+
+polyfit:
+  x: dtemp
+  y: dac
+  order: 1
+  result: dac_vs_dtemp_fit
+  points:
+    dacfit:
+       x: 38
+    dtempfit:
+       y: 500
+
+
+
 # INDIVIDUAL PLOT-SPECIFIC OPTIONS -------------------------------------
 --- plot
 ---
@@ -132,10 +146,16 @@ dac_vs_dtemp:
           line: black
        options:
           linestyle: dashed
+     - type: polyfit
+       polyname: dac_vs_dtemp_fit
+       npoints: 100
+       plot_type: line
+       color:
+          line: black
+       options:
+          linestyle: dotted
    device: 'dacvsdtemp.ps/vcps'
    symbol_size: .5
    axis_num_size: 1.5
    axis_title_size: 1.5
-
-
 

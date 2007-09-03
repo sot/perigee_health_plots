@@ -111,26 +111,34 @@ dac_vs_dtemp:
    oplot:
    # array of hashes to overplot
    # so far, code only knows how to plot 2rd order polynomials
-     - type: poly
-       poly:
-         - 114.474
-         - 0.403096
-         - 0.236348
+#     - type: poly
+#       poly:
+#         - 114.474
+#         - 0.403096
+#         - 0.236348
+#       npoints: 100
+#       plot_type: line
+#       color:
+#          line: black
+#       options:
+#          linestyle: dashed
+     - type: polyfit
+       polyname: dac_vs_dtemp_fit
        npoints: 100
        plot_type: line
        color:
           line: black
        options:
-          linestyle: dashed
+          linestyle: dotted
    device: 'dacvsdtemp.ps/vcps'
    symbol_size: .25
    axis_num_size: 1.5
    axis_title_size: 1.5
 
-
-## dac at dtemp 38
-#dac38fit:
-#   mode: polyfit
+#
+### dac at dtemp 38
+#dacfit:
+#   mode: summary
 #   # plot limits
 #   lims:
 #     - ~
@@ -140,12 +148,30 @@ dac_vs_dtemp:
 #   xtitle: 'Days from first pass in group'
 #   ytitle: 'DAC level to maintain dtemp 38'
 #   x: time
-#   y: dac_38_fit
-#   device: 'dac38fit.ps/vcps'
+#   y: dacfit
+#   device: 'dacfit38.ps/vcps'
 #   symbol_size: .25
 #   axis_num_size: 1.5
 #   axis_title_size: 1.5
 #
+#dtempfit:
+#   mode: summary
+#   # plot limits
+#   lims:
+#     - ~
+#     - ~
+#     - ~
+#     - ~
+#   xtitle: 'Days from first pass in group'
+#   ytitle: 'dtemp at DAC 500'
+#   x: time
+#   y: dtempfit
+#   device: 'fitdac500.ps/vcps'
+#   symbol_size: .25
+#   axis_num_size: 1.5
+#   axis_title_size: 1.5
 #
+
+
 
 

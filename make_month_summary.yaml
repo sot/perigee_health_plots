@@ -32,6 +32,12 @@ pass_dir_index: index.html
 # master index
 master_index: index.html
 
+# passlist_file
+pass_file: pass_list.txt
+
+# fit_file
+fit_file: polyfit.yaml
+
 month_map:
   1: January
   2: February
@@ -46,10 +52,9 @@ month_map:
   11: November
   12: December
 
-#polyfit:
-#  dac:
-#     x: dtemp
-#     y: dac 
-#     result: dac_vs_dtemp_fit
-#     dtemp: 38
-#
+polyfit:
+  - name: dac_vs_dtemp_fit
+    x: dtemp
+    y: dac 
+    order: 1
+    min_dx: .2
