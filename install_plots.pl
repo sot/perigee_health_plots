@@ -241,7 +241,7 @@ for my $summ_month ( @summaries ){
 }
 
 
-my %month_map = %{$config{task}->{month_map}};
+my %month_map = %{$config{general}->{month_map}};
 
 my @year_list = sort (keys %time_tree);
 my @year_links = map { $_ . ".html" } @year_list;

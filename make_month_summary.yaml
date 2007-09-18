@@ -36,21 +36,15 @@ master_index: index.html
 pass_file: pass_list.txt
 
 # fit_file
-fit_file: polyfit.yaml
+summary_file: month_data.yaml
 
-month_map:
-  1: January
-  2: February
-  3: March
-  4: April
-  5: May
-  6: June
-  7: July
-  8: August
-  9: September
-  10: October
-  11: November
-  12: December
+
+stats_columns:
+  - dtemp
+  - dtime
+  - aca_temp
+  - dac
+  - ccd_temp
 
 polyfit:
   - name: dac_vs_dtemp_fit

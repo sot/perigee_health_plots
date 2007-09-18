@@ -14,3 +14,18 @@ web_dir: /proj/sot/ska/www/ASPECT/perigee_health_plots/
 
 base_url: http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots/
 
+
+month_map:
+  1: January
+  2: February
+  3: March
+  4: April
+  5: May
+  6: June
+  7: July
+  8: August
+  9: September
+  10: October
+  11: November
+  12: December
+

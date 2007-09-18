@@ -30,6 +30,11 @@ sub new{
     my $arg_href = shift;
     my $self = {};
     bless $self, $class;
+
+    if (defined $arg_href->{summary_object}){
+	my $self = $arg_href->{summary_object}->hashify();
+	return $self;
+    }
     
     if (defined $arg_href->{tstart}){
 	$self->tstart($arg_href->{tstart});
@@ -146,7 +151,15 @@ sub make_plots{
     }
 
     if ($opt{verbose}){
-	print Dumper @todo_directories;
+	if (scalar(@todo_directories)){
+	    print "Plotting health for:\n";
+	    for my $dir (@todo_directories){
+		print "\t${dir}\n";
+	    }
+	}
+	else{
+	    print "Health plots up to date\n";
+	}
     }
     
     plot_health( \@todo_directories, \%config, \%opt );
@@ -321,17 +334,7 @@ sub plot_health{
 ##	    
 ##print $yfit, "\n";
 #	    print $coeffs, "\n";
-##	    for my $fitset (keys %{$config->{task}->{polyfit}->{points}}){
-##		if (defined $config->{task}->{polyfit}->{points}->{$fitset}->{x}){
-##		    my $plug = $config->{task}->{polyfit}->{points}->{$fitset}->{x};
-##		    $dir_data{$fitset} = ($coeffs->(0)->sclr + ($coeffs->(1)->sclr * $plug) + ($coeffs->(2)->sclr * $plug * $plug));
-##		}
-##		else{
-##		    $dir_data{$fitset} = random(1)->sclr;
-##		}
-##	    }
-#	    push @{$dir_data{dac_vs_dtemp_fit}}, $coeffs->list; 
-#	}
+
 	push @data_array, \%dir_data;
     }
 
@@ -339,8 +342,16 @@ sub plot_health{
 # if I want 1 pass per plot, run in a loop and put the plots in the pass
 # directory
 
+    my $cumul_data;
+    if (defined $config->{task}->{polyfit}){
+	    
+	$cumul_data = concat_data({ config => $config,
+				    data_array => \@data_array });
+    }
+
+
     if ($config->{task}->{dir_mode} eq 'single'){
-	
+
 	for my $dir (@data_array){
 	    
 	    my %colranges = find_pdl_ranges( [$dir]);
@@ -349,10 +360,11 @@ sub plot_health{
 						opt => $opt,
 						data_array => [$dir],
 						ranges => \%colranges,
+						cumul_data => $cumul_data,
 					    });
 	    
 	    $plot_helper->plot( 'aca_temp' );
-	    
+           
 	    $plot_helper->plot( 'ccd_temp' );
 	    
 	    $plot_helper->plot( 'dac' );
@@ -360,6 +372,9 @@ sub plot_health{
 	    $plot_helper->plot( 'dac_vs_dtemp' );
 
 	    $plot_helper->legend();
+	    
+	    $plot_helper->report();
+
 	}
 	
     }
@@ -371,29 +386,14 @@ sub plot_health{
 	my %colranges = find_pdl_ranges( \@data_array );
 
 	my $plot_helper;
-	if (defined $config->{task}->{polyfit}){
 	    
-	    my $cumul_data = concat_data({ config => $config,
-					data_array => \@data_array });
-	    
-	    $plot_helper = PlotHelper->new({ config => $config,
-					     opt => $opt,
-					     data_array => \@data_array,
-					     ranges => \%colranges,
-					     cumul_data => $cumul_data,
-					 });
+	$plot_helper = PlotHelper->new({ config => $config,
+					 opt => $opt,
+					 data_array => \@data_array,
+					 ranges => \%colranges,
+					 cumul_data => $cumul_data,
+				     });
 	
-	    
-	}
-	else{
-	    $plot_helper = PlotHelper->new({ config => $config,
-					     opt => $opt,
-					     data_array => \@data_array,
-					     ranges => \%colranges,
-					     
-					 });
-	}
-
 	
 	$plot_helper->plot( 'aca_temp' );
 	
@@ -537,8 +537,10 @@ use Class::MakeMethods::Standard::Hash(
 						       config
 						       opt
 						       data_array
-						       ranges
+						       data_ranges
 						       cumul_data
+						       coeffs
+						       polyfit
 						       )
                                                     ],
 				       );
@@ -547,6 +549,8 @@ use PGPLOT::Simple qw( pgs_plot );
 use PDL::NiceSlice;
 use PDL;
 use PGPLOT;
+use Data::Dumper;
+use IO::All;
 
 #my $obsid_count = 0;
 #my $pass_count = 0;
@@ -562,7 +566,7 @@ sub new{
 #    $pass_count = 0;
     $self->config($arg_in->{config});
     $self->data_array($arg_in->{data_array});
-    $self->ranges($arg_in->{ranges});
+    $self->data_ranges($arg_in->{ranges});
     $self->opt($arg_in->{opt});
 
     if (defined $arg_in->{cumul_data}){
@@ -719,6 +723,7 @@ sub make_plot_a_vs_b{
     for my $dir_num ( 0 ... scalar(@{$data_ref})-1 ){
 	
 	my $datadir = $data_ref->[$dir_num];
+	print "dir is $datadir \n";
         my @ordered_obsid = @{$datadir->{ordered_obsid}};
 	my %obsid_idx = %{$datadir->{obsid_idx}};
 	my %datapdl = %{$datadir->{pdl}};
@@ -774,7 +779,7 @@ sub plot{
     my $config = $self->config();
     my $opt = $self->opt();
     my $data_ref = $self->data_array();
-    my $colrange = $self->ranges();
+    my $colrange = $self->data_ranges();
 
     my $curr_config = $config->{plot}->{$plot};
 
@@ -833,7 +838,7 @@ sub plot{
 					});
 	
 	if (defined $curr_config->{oplot}){
-	    push @pgs_array, make_oplot({ 
+	    push @pgs_array, $self->make_oplot({ 
 		y_range => $colrange->{$y_type},
 		x_range => $colrange->{$x_type},
 		oplot => $curr_config->{oplot},
@@ -843,14 +848,10 @@ sub plot{
 	    });
 	}
     }
-#    use Data::Dumper;
-#    print Dumper @pgs_array;
-    
-#    print "plot is $plot \n";
-    use Data::Dumper;
+
+
     unless ($opt->{dryrun}){
 	eval{
-#	print Dumper @pgs_array;
 	    pgs_plot( @pgs_array );
 	};
 	if ($@){
@@ -864,7 +865,84 @@ sub plot{
 
 }
 
+sub make_polyfit{
+
+    my $self = shift;
+    my $arg_in = shift;
+    my $config = $arg_in->{config};
+    my $element = $arg_in->{element};
+    my $cumul_data = $arg_in->{cumul_data};
+    my $data = $arg_in->{data};
+
+    print Dumper $data;
+    my $polyname = $element->{polyname};
+
+    eval 'use PDL::Fit::Polynomial';
+    eval 'use PDL::NiceSlice';
+## let's fit a polynomial to the pass
+    my $xdata = $cumul_data->{x};
+    my $ydata = $cumul_data->{y};
+    my ($xmean,$xrms,$xmedian,$xmin,$xmax) = $xdata->stats;
+    my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $ydata->stats;
+    my $order = ($config->{task}->{polyfit}->{order});
+    $order = $order + 1; #fitpoly has a weird idea of order
+    my $min_dx = $config->{task}->{polyfit}->{min_dx};
+    my ($yfit, $coeffs);
+#	    print "min: $xmin max: $xmax, dx: $min_dx \n";
+    if (($xmax - $xmin) < $min_dx){
+	my $diff = $xmax - $xmin;
+	return undef;
+    }
+    else{
+	my %fitpoint;
+	($yfit, $coeffs) = fitpoly1d($xdata, $ydata, $order);
+	my @poly = $coeffs->list;
+	# if any points were requested, define them
+		for my $fitset (keys %{$config->{task}->{polyfit}->{points}}){
+		    my $fit_def = $config->{task}->{polyfit}->{points}->{$fitset};
+		    if (defined $fit_def->{x}){
+			my $plug = $fit_def->{x};
+			my $yval = 0;
+			for my $i (0 .. $#poly){
+			    $yval += $poly[$i] * ($plug**$i);
+			}
+			$fitpoint{$fitset} =  { x => $plug,
+						y => $yval,
+					    }
+		    }
+		    if (defined $fit_def->{y}){
+			my $solve_y = $fit_def->{y};
+			my $solve_xmin = $fit_def->{xmin};
+			my $solve_xmax = $fit_def->{xmax};
+			my $npoints = 1000;
+			my $xvals = sequence($npoints+1)*(($solve_xmax - $solve_xmin)/($npoints))+(($solve_xmin));
+			my $yvals = 0;
+			for my $i (0 .. $#poly){
+			    $yvals += $poly[$i] * ($xvals**$i);
+			}
+			my $y_diff = abs($yvals - $solve_y);
+			my $x_idx = which($y_diff eq min($y_diff));
+
+			$fitpoint{$fitset} = { x => $xvals->($x_idx)->sclr,
+					       y => $solve_y,
+					   };
+		    }
+		}
+	
+	if ($self->{opt}->{verbose}){
+	    print Dumper %fitpoint;
+	}
+	$self->polyfit( \%fitpoint );
+	$self->coeffs( \@poly);
+
+	return $coeffs->list();
+    }
+    
+}
+
 sub make_oplot{
+    
+    my $self = shift;
     my $arg_in = shift;
     my $data = $arg_in->{data};
     my @oplot = @{$arg_in->{oplot}};
@@ -878,6 +956,7 @@ sub make_oplot{
 #    use Math::Polynomial;
     
     for my $element (@oplot){
+
 	if ($element->{type} eq 'poly'){
 	    my @poly = @{$element->{poly}};
 	    my $npoints = $element->{npoints};
@@ -896,30 +975,18 @@ sub make_oplot{
 			       );
 	    
 	}
-	if ($element->{type} eq 'polyfit'){
-	    my $polyname = $element->{polyname};
 
-	    eval 'use PDL::Fit::Polynomial';
-	    eval 'use PDL::NiceSlice';
-## let's fit a polynomial to the pass
-#	    use Data::Dumper;
-#	    print Dumper $cumul_data;
-	    my $xdata = $cumul_data->{x};
-	    my $ydata = $cumul_data->{y};
-	    my ($xmean,$xrms,$xmedian,$xmin,$xmax) = $xdata->stats;
-	    my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $ydata->stats;
-	    my $order = ($config->{task}->{polyfit}->{order});
-	    $order = $order + 1;
-	    my $min_dx = $config->{task}->{polyfit}->{min_dx};
-	    my ($yfit, $coeffs);
-	    if (($xmax - $xmin) < $min_dx){
-		my $diff = $xmax - $xmin;
-#		print "diff is $diff \n";
-#		$coeffs = pdl( $xmean, 0 );
-	    }
-	    else{
-		($yfit, $coeffs) = fitpoly1d($xdata, $ydata, $order);
-		my @poly = $coeffs->list;
+	if ($element->{type} eq 'polyfit'){
+
+	    my @poly = $self->make_polyfit({ config => $config,
+				     element => $element,
+				      data => $data,
+				     cumul_data => $cumul_data,
+				     });
+
+				     
+	    if (scalar(@poly)){
+
 		my $npoints = $element->{npoints};
 		my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
 		my $yvals = 0;
@@ -934,22 +1001,10 @@ sub make_oplot{
 				   plot => $element->{plot_type},
 				   );
 		
-		
-		
 	    }
 ##	    
 ##print $yfit, "\n";
 #	    print $coeffs, "\n";
-###	    for my $fitset (keys %{$config->{task}->{polyfit}->{points}}){
-###		if (defined $config->{task}->{polyfit}->{points}->{$fitset}->{x}){
-###		    my $plug = $config->{task}->{polyfit}->{points}->{$fitset}->{x};
-###		    $dir_data{$fitset} = ($coeffs->(0)->sclr + ($coeffs->(1)->sclr * $plug) + ($coeffs->(2)->sclr * $plug * $plug));
-###		}
-###		else{
-###		    $dir_data{$fitset} = random(1)->sclr;
-###		}
-###	    }
-##	    push @{$dir_data{dac_vs_dtemp_fit}}, $coeffs->list; 
 #	    
 #
 ##	    for my $dir_num ( 0 ... scalar(@{$data})-1 ){
@@ -1080,5 +1135,101 @@ my $aspect = .5;
     }
 }
 
+sub report{
+
+    my $self = shift;
+    my $report_config = $self->config()->{report};
+    my $filename = $report_config->{file};
+
+    my $report_text = "";
+
+    $report_text .= "Perigee Health Report\n\n";
+
+    $report_text .= "Report for these passes:\n\n";
+
+    my $pass_dir = $self->config()->{general}->{pass_dir};
+
+    my $full_path_dirname;
+    if ($self->config()->{task}->{dir_mode} eq 'single'){
+	my $pass = $self->data_array()->[0];
+	$full_path_dirname = $pass->{dirname};
+	my $dirname = $full_path_dirname;
+	$dirname =~ s/$pass_dir\/?//;
+	$report_text .= "\t $dirname \n";
+    }
+
+
+    $report_text .= "---------------------------------------------------\n";
+    $report_text .= "Warnings\n";
+    $report_text .= "---------------------------------------------------\n";
+    $report_text .= "\n";
+    
+    my $warning = "";
+    for my $plotcfg_name (keys %{$self->config()->{plot}}){
+	my $plotcfg = $self->config()->{plot}->{$plotcfg_name};
+	if (defined $plotcfg->{warn}){
+	    for my $key (%{$plotcfg->{warn}}){
+		if ($key eq 'max'){
+		    my $datamax = $self->data_ranges()->{$plotcfg_name}->{max};
+		    my $warnmax = $plotcfg->{warn}->{$key};
+		    if ($datamax > $warnmax){
+			$warning .= "Warning $plotcfg_name exceeded defined threshold\n";
+			$warning .= "Threshold: $warnmax\n";
+			$warning .= "$plotcfg_name high Value: $datamax\n";
+		    }
+		}
+	    }
+	}
+    }
+    if ($warning eq ""){
+	$warning = "No warnings reported\n";
+    }
+
+    $report_text .= "$warning\n\n";
+
+
+    $report_text .= "---------------------------------------------------\n";
+    $report_text .= "Ranges\n";
+    $report_text .= "---------------------------------------------------\n";
+
+    my %ranges = %{$self->data_ranges()};
+
+
+    $report_text .= "ACA Housing Temperature Range (deg C)\n";
+    $report_text .= "\tmax:" . sprintf($ranges{aca_temp}->{max}) . "\n";
+    $report_text .= "\tmin:" . sprintf($ranges{aca_temp}->{min}) . "\n\n";
+
+    $report_text .= "CCD Temperature Range (deg C)\n";
+    $report_text .= "\tmax:". sprintf($ranges{ccd_temp}->{max}) . "\n";
+    $report_text .= "\tmin:". sprintf($ranges{ccd_temp}->{min}) . "\n\n";
+
+    $report_text .= "TEC DAC Control Level Range\n";
+    $report_text .= "\tmax:" . sprintf($ranges{dac}->{max}) . "\n";
+    $report_text .= "\tmin:" . sprintf($ranges{dac}->{min}) . "\n\n";
+
+    $report_text .= "\n";
+
+
+
+    $report_text .= "---------------------------------------------------\n";
+    $report_text .= "Fitpoints\n";
+    $report_text .= "---------------------------------------------------\n\n";
+
+    $report_text .= "With a linear fit of the available DAC vs Delta Temp data\n\n";
+
+    $report_text .= "TEC DAC will reach " . $self->polyfit()->{dtempfit}->{y};
+    $report_text .= ", when the ACA - CCD temp is " . $self->polyfit()->{dtempfit}->{x};
+    $report_text .= "\n\n";
+
+    $report_text .= "When the ACA - CCD temp is " . $self->polyfit()->{dacfit}->{x};
+    $report_text .= ", the TEC DAC level should be " . $self->polyfit()->{dacfit}->{y};
+    $report_text .= "\n\n";
+    
+    my $outfile = io("${full_path_dirname}/$filename");
+    $outfile->print($report_text);
+    
+
+
+}
 
 1;

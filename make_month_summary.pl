@@ -46,6 +46,7 @@ my $SHARE = "$ENV{SKA}/share/${TASK}";
 
 #require "${SHARE}/PlotHealth.pm";
 require "./PerigeeData.pm";
+require "./PlotHealth.pm";
 
 my %share_config;
 if ( defined $opt{shared_config}){
@@ -142,17 +143,11 @@ for my $month (@month_list){
 	my $pass_list_file = "${summary_dir}/${month}/$config{task}->{pass_file}";
 	print "file is $pass_list_file \n";
 	io($pass_list_file)->print(join("\n", @passlist));
-#	use Data::Dumper;
-#	print Dumper $pass_list_file;
-#	for my $line (@passlist){
-#	    $pass_list_file->print("$line \n");
-#	}
 
     }
 
 
 
-#    my %config = YAML::LoadFile( "plot_summary.yaml" );
 #    # override plot destination
     $config{task}->{plot_dir} = "${summary_dir}/${month}";
 #    # directories to summarize
@@ -160,18 +155,28 @@ for my $month (@month_list){
 
     my $month_data = PerigeeData->new({ config => \%config,
 					opt => \%opt,
-					passlist => \@passlist})->process;
+					passlist => \@passlist,
+				    })->process;
 
-    if (defined $config{task}->{polyfit}){
-	unless( $opt{dryrun}){
-	    my $fit_file = "${summary_dir}/${month}/$config{task}->{fit_file}";
-	    io($fit_file)->print(YAML::Dump($month_data->fit_result()));
-	}
+
+    my $summary_file = "${summary_dir}/${month}/$config{task}->{summary_file}";
+    my %summary;
+    if (defined $month_data->fit_result()){
+	$summary{fit_result} = $month_data->fit_result();
     }
-    
-    $month_data->plot_health();
+    $summary{stats} = $month_data->pdl_stats();
+    my $summary_yaml = YAML::Dump(%summary);
+
+    if ($opt{verbose}){
+	print $summary_yaml, "\n";
+    }
+
+    unless ($opt{dryrun}){
+	io($summary_file)->print($summary_yaml);
+    }
+
+    $month_data->make_plots();
+
 
 }
-
-
 

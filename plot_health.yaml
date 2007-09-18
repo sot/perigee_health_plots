@@ -46,11 +46,15 @@ polyfit:
   y: dac
   order: 1
   result: dac_vs_dtemp_fit
+  min_dx: .1
   points:
     dacfit:
        x: 38
     dtempfit:
        y: 500
+# and a range to solve for y numerically
+       xmin: 20
+       xmax: 60       
 
 
 
@@ -116,6 +120,9 @@ dac:
    symbol_size: .5
    axis_num_size: 1.5
    axis_title_size: 1.5
+   warn: 
+      max: 500
+
 
 # dac vs dtemp plot
 dac_vs_dtemp:
@@ -159,3 +166,9 @@ dac_vs_dtemp:
    axis_num_size: 1.5
    axis_title_size: 1.5
 
+
+--- report
+---
+
+   file: report.txt
+      
