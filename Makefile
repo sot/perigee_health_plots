@@ -1,5 +1,6 @@
 
 TASK = perigee_health_plots
+VERSION = 1.0
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
@@ -35,3 +36,10 @@ ifdef PERIGEELIB
 	rsync --times --cvs-exclude $(PERIGEELIB) $(INSTALL_PERLLIB)/Ska/Perigee/
 endif
 
+
+dist:
+	mkdir $(TASK)-$(VERSION)
+	rsync -aruvz --cvs-exclude --exclude $(TASK)-$(VERSION) * $(TASK)-$(VERSION)
+	tar cvf $(TASK)-$(VERSION).tar $(TASK)-$(VERSION)
+	gzip --best $(TASK)-$(VERSION).tar
+	rm -rf $(TASK)-$(VERSION)/
