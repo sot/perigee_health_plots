@@ -36,7 +36,7 @@ master_index: index.html
 pass_file: pass_list.txt
 
 # fit_file
-stats_file: month_data.yaml
+stats_file: range_data.yaml
 
 
 stats_columns:

@@ -57,8 +57,6 @@ my $pass_status = Ska::Perigee::Data::pass_stats_and_plots(\%opt);
 
 my $summary_status = Ska::Perigee::Data::month_stats_and_plots(\%opt);
 
-my $report_status = Ska::Perigee::Data::make_reports(\%opt);
-
-my $install_status = Ska::Perigee::Data::install_stats_and_plots(\%opt);
+my $install_status = Ska::Perigee::Data::install_plots(\%opt);
 
 

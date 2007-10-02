@@ -411,7 +411,8 @@ sub polyfit{
 		my $xdata = $agg_pdl->{$xname};
 		my $ydata = $agg_pdl->{$yname};
 		my $xstats = $stats->{$xname};
-		
+		print Dumper $stats;
+
 		my $order = ($fit->{order});
 		$order = $order + 1;
 		
