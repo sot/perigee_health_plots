@@ -30,8 +30,6 @@ GetOptions (\%opt,
 	    'dryrun!',
 	    'shared_config=s',
 	    'config=s',
-	    'tstart=s',
-	    'tstop=s',
             );
 
 

@@ -1,8 +1,8 @@
 --- general
 ---
-pass_dir: /proj/gads6/aca/perigee_health_plots/PASS_DATA
+pass_dir: /proj/sot/ska/data/perigee_health_plots/PASS_DATA
 
-summary_dir: /proj/gads6/aca/perigee_health_plots/SUMMARY_DATA
+summary_dir: /proj/sot/ska/data/perigee_health_plots/SUMMARY_DATA
 
 pass_time_file: pass_times.txt
 
@@ -29,3 +29,4 @@ month_map:
   11: November
   12: December
 
+notify: jeanconn@head.cfa.harvard.edu

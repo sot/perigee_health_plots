@@ -13,4 +13,14 @@ min_samples: 5
 threshold:
   aca_temp: 3
   ccd_temp: 3
+
+
+
+data_file_comments: data_file_comments.txt
+
+
+
+
+ 
+
   

@@ -3,9 +3,11 @@ TASK = perigee_health_plots
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
-SHARE = shared.yaml get_perigee_telem.pl get_perigee_telem.yaml perigee_telem_parse.pl perigee_telem_parse.yaml plot_health.pl plot_summary.yaml plot_health.yaml install_plots.pl install_plots.yaml make_month_summary.pl make_month_summary.yaml PlotHealth.pm check_telem.pl check_telem.yaml
-DATA = pass_plots.cfg column_conversion.yaml aca8x8.fits.gz
+SHARE = shared.yaml get_perigee_telem.pl get_perigee_telem.yaml perigee_telem_parse.pl perigee_telem_parse.yaml plot_health.pl plot_summary.yaml plot_health.yaml install_plots.pl install_plots.yaml make_month_summary.pl make_month_summary.yaml check_telem.pl check_telem.yaml data_file_comments.txt report_template.txt
+DATA = pass_plots.cfg column_conversion.yaml aca8x8.fits.gz 
 LIB = Telemetry.pm 
+PERIGEELIB = Data.pm DataObject.pm Plot.pm Pass.pm Range.pm
+
 
 radmon:
 	mkdir -p $(INSTALL)/data/arc/iFOT_events/radmon/
@@ -25,7 +27,11 @@ ifdef SHARE
 	rsync --times --cvs-exclude $(SHARE) $(INSTALL_SHARE)/
 endif
 ifdef LIB
-	mkdir -p $(INSTALL_PERLLIB)
-	rsync --times --cvs-exclude $(LIB) $(INSTALL_PERLLIB)/
+	mkdir -p $(INSTALL_PERLLIB)/Ska/
+	rsync --times --cvs-exclude $(LIB) $(INSTALL_PERLLIB)/Ska/
+endif
+ifdef PERIGEELIB
+	mkdir -p $(INSTALL_PERLLIB)/Ska/Perigee/
+	rsync --times --cvs-exclude $(PERIGEELIB) $(INSTALL_PERLLIB)/Ska/Perigee/
 endif
 

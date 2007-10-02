@@ -16,12 +16,13 @@ GetOptions (\%opt,
 	    'verbose!',
 	   );
 
-require "./RetrievePerigeeTelem.pm";
+#require "./Data.pm";
+use Ska::Perigee::Data;
 
 if ($opt{help}){
-    print "See perldoc for RetrievePerigeeTelem\n";
+    print "See perldoc for Ska::Perigee::Data::retrieve_telem\n";
     exit;
 }
 
-my $status = RetrievePerigeeTelem::retrieve_telem(\%opt);
+my $status = Ska::Perigee::Data::retrieve_telem(\%opt);
 

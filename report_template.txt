@@ -1,0 +1,34 @@
+Perigee Health Report
+
+Report for these passes:
+
+%PASS_LIST%
+
+----------------------------------------------------------------------------
+Warnings
+----------------------------------------------------------------------------
+%WARNINGS%
+
+
+----------------------------------------------------------------------------
+Ranges
+----------------------------------------------------------------------------
+
+ACA Housing Temperature Range (deg C)
+max:  %ACA_TEMP_MAX%
+min:  %ACA_TEMP_MIN%
+mean: %ACA_TEMP_MEAN%
+
+ACA CCD Temperature Range (deg C)
+max:  %CCD_TEMP_MAX%
+min:  %CCD_TEMP_MIN%
+mean: %CCD_TEMP_MEAN%
+
+TEC DAC Control Level Rnage
+max:  %DAC_MAX%
+min:  %DAC_MIN%
+mean: %DAC_MEAN%
+
+
+
+      

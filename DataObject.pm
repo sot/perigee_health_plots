@@ -1,17 +1,56 @@
-package PlotHealth;
+package Ska::Perigee::DataObject;
 
-use strict; 
+use strict;
 use warnings;
-#use PGPLOT;
-#use XML::Dumper;
+
+use Time::CTime;
+use IO::All;
+
+#use Data::ParseTable qw( parse_table );
+use Carp;
+
+#use Getopt::Long;
+#use File::Glob;
+use Ska::Convert qw(date2time);
+#use File::Copy;
+use Data::Dumper;
+use YAML;
+
+#use Hash::Merge qw( merge );
+
+use vars qw($VERSION @ISA @EXPORT @EXPORT_OK %EXPORT_TAGS);
+
+require Exporter;
+
+our @ISA = qw(Exporter);
+our @EXPORT = qw();
+our @EXPORT_OK = qw( );
+%EXPORT_TAGS = ( all => \@EXPORT_OK );
+
+our $VERSION = '1.0';
+
+
+
+# Set some global vars with directory locations
+my $SKA = $ENV{SKA} || '/proj/sot/ska';
+my $TASK = 'perigee_health_plots';
+my $SHARE = "$ENV{SKA}/share/${TASK}";
+
+
+
+# I stuck these in an eval section later... we only need to load them if we
+# have to grab data
+#
+# use File::Path;
+# use Ska::Process qw/ get_archive_files /;
+# use IO::All;
+
 use PDL;
 use PDL::NiceSlice;
-use Getopt::Long;
 use YAML;
-use Carp;
+
 use Data::Dumper;
 use Chandra::Time;
-
 
 use Class::MakeMethods::Standard::Hash(
 				       scalar => [ qw(
@@ -20,21 +59,22 @@ use Class::MakeMethods::Standard::Hash(
 						      config
 						      opt
 						      passlist
+						      todo_directories
+						      pass_data
+						      aggregate_pdl
+						      fit_result
 						      )
 						   ],
 				       );
 
+
+use Data::Dumper;
 
 sub new{
     my $class = shift;
     my $arg_href = shift;
     my $self = {};
     bless $self, $class;
-
-    if (defined $arg_href->{summary_object}){
-	my $self = $arg_href->{summary_object}->hashify();
-	return $self;
-    }
     
     if (defined $arg_href->{tstart}){
 	$self->tstart($arg_href->{tstart});
@@ -60,7 +100,29 @@ sub new{
 }
 
 
-sub make_plots{
+
+sub process{
+# perform the actions to 
+#    1) find the relevant data directories,
+#    2) read in the data 
+#    3) calculate rough statistics over the interval requested
+#    4) fit polynomials as requested 
+    my $self = shift;
+    $self->select_analyzed_dir();
+    $self->prepare_data();
+    $self->pdl_stats();
+    $self->polyfit();
+    return $self;
+}
+
+
+
+
+
+sub select_analyzed_dir{
+    # find all directories within the specified time range that have
+    # the yaml data file
+
     my $self = shift;
     my %config = %{$self->config()};
     my $WORKING_DIR = $config{general}->{pass_dir};
@@ -82,170 +144,74 @@ sub make_plots{
 	@todo_directories = @{$self->passlist()};
     }
     else{
-	if ((defined $tstart) or (defined $tstop)){
-	  DIRECTORY:
-	    for my $dir (@telem_dirs){
-		my $dir_start;
-		if ($dir =~ /${WORKING_DIR}\/(.*)/){
-		    $dir_start = $1;
-		}
-		else{
-		    next DIRECTORY; 
-		}
-		my $dir_start_secs = Chandra::Time->new($dir_start)->secs();
-
-		if (defined $tstart and defined $tstop){
-		    next DIRECTORY if ( $dir_start_secs < $tstart );
-		    next DIRECTORY if ( $dir_start_secs > $tstop );
-		    if ( -e "${dir}/${yaml_data_file}"){
-			push @todo_directories, $dir;
-		    }
-		    next DIRECTORY;
-		}
-		
-		if (defined $tstart and not defined $tstop){
-		    next DIRECTORY if ($dir_start_secs < $tstart);
-		    if ( -e "${dir}/${yaml_data_file}"){
-			push @todo_directories, $dir;
-		    }
-		    next DIRECTORY;
-		}
-
-		if (defined $tstop and not defined $tstart){
-		    next DIRECTORY if ($dir_start_secs > $tstop);
-		    if ( -e "${dir}/${yaml_data_file}"){
-			push @todo_directories, $dir;
-		    }
-		    next DIRECTORY;
-		}
-		
+      DIRECTORY:
+	for my $dir (@telem_dirs){
+	    my $dir_start;
+	    if ($dir =~ /${WORKING_DIR}\/(.*)/){
+		$dir_start = $1;
 	    }
-
-	}
-# if no range specified, try to just get recent directories with
-# missing plots
-	else{
-	    
-	    my @plotlist;
-	    for my $plot ( values %{$config{plot}} ){
-		my $device = "$plot->{device}";
-		if ($device =~ /(.*)\/vcps/ ){
-		    push @plotlist, $1;
-		}
+	    else{
+		next DIRECTORY; 
 	    }
+	    my $dir_start_secs = Chandra::Time->new($dir_start)->secs();
 	    
-# step backward through them until I find one (or more) without pictures
-	    
-	  DIRECTORY:
-	    for my $dir ( reverse @telem_dirs ){
-	      PICTURE:
-		for my $picture (@plotlist){
-		    next PICTURE if (-e "${dir}/${picture}");
+	    if (defined $tstart and defined $tstop){
+		next DIRECTORY if ( $dir_start_secs < $tstart );
+		next DIRECTORY if ( $dir_start_secs > $tstop );
+		if ( -e "${dir}/${yaml_data_file}"){
 		    push @todo_directories, $dir;
-		    next DIRECTORY;
 		}
-		# if missing flag specified, continue even if I hit a directory with pictures
-		last DIRECTORY unless ($opt{missing});
+		next DIRECTORY;
 	    }
-	}
-    }
-
-    if ($opt{verbose}){
-	if (scalar(@todo_directories)){
-	    print "Plotting health for:\n";
-	    for my $dir (@todo_directories){
-		print "\t${dir}\n";
+	    
+	    if (defined $tstart and not defined $tstop){
+		next DIRECTORY if ($dir_start_secs < $tstart);
+		if ( -e "${dir}/${yaml_data_file}"){
+		    push @todo_directories, $dir;
+		}
+		next DIRECTORY;
 	    }
-	}
-	else{
-	    print "Health plots up to date\n";
+	    
+	    if (defined $tstop and not defined $tstart){
+		next DIRECTORY if ($dir_start_secs > $tstop);
+		if ( -e "${dir}/${yaml_data_file}"){
+		    push @todo_directories, $dir;
+		}
+		next DIRECTORY;
+	    }
+	    
 	}
     }
     
-    plot_health( \@todo_directories, \%config, \%opt );
-}
-#for my $dir (@todo_directories[0]){
-#    if ($opt{verbose}){
-#	print "making plots for $dir \n";
-#    }
-#    plot_health( $dir, \%config );
-#    convert_to_gif( "${dir}/$health_plot", "${dir}/$health_plot_gif");
-#    convert_to_gif( "${dir}/$legend", "${dir}/$legend_gif");
-#    if (( -e "${dir}/$health_plot_gif" ) and (-e "${dir}/$legend_gif" )){
-#        if ($opt{delete}){
-#            unlink("${dir}/$health_plot");
-#            unlink("${dir}/$legend");
-#        }
-#    }
-#}
-#
+    
+    $self->todo_directories(\@todo_directories);
 
-
-
-##***************************************************************************
-sub usage
-##***************************************************************************
-{
-    my ( $exit ) = @_;
-
-    local $^W = 0;
-    eval 'use Pod::Text';
-    if ($@){
-        croak(__PACKAGE__ . ": !$@");
-    }
-    Pod::Text::pod2text( '-75', $0 );
-    exit($exit) if ($exit);
-}
-
-##***************************************************************************
-sub convert_to_gif{
-##***************************************************************************
-    my ( $in_ps, $out_gif) = @_;
-#    print( "convert -density 100x100 $in_ps $out_gif\n");
-#    system( "convert -density 100x100 $in_ps $out_gif");
-
-    print "in_ps is $in_ps \n";
-    print "out_gif is $out_gif \n";
-#    system("/proj/gads6/jeanproj/perigee_health_plots/ps2any -density 100 -verbose $in_ps $out_gif ");
-    system("convert -density 100x100 $in_ps $out_gif ");
-    if ($? == -1) {
-	print "failed to execute: $!\n";
-    }
-    elsif ($? & 127) {
-                     printf "child died with signal %d, %s coredump\n",
-		     ($? & 127),  ($? & 128) ? 'with' : 'without';
-                 }
-    else {
-	printf "child exited with value %d\n", $? >> 8;
-    }
-
-
+    return $self;
+    
 }
 
 
 
+sub prepare_data{
+    # read in the yaml data files from a directory or a list of directories
+    # store the pdls in a hash by pass and in aggregate
 
-##***************************************************************************
-sub plot_health{
-##***************************************************************************
+    my $self = shift;
 
-    my $dirlist = shift;
-    my $config = shift;
-    my $opt = shift;
-
+    my $dirlist = $self->todo_directories();
+    my $config = $self->config();
+    my $opt = $self->opt();
+    
     my @columns = @{$config->{task}->{data_columns}};
 
     my @data_array;
-
+    my %agg_data_pdl;
 
     for my $dir (@{$dirlist}){
 #	print "dir is $dir \n";
 	
 	my $yaml_file = "${dir}/$config->{general}->{data_file}";
 
-# read in data from YAML file
-#	my $dump = new XML::Dumper;
-#	my $xml = $dump->xml2pl( $xml_file );
 	my $yaml;
 	eval{
 	    $yaml = YAML::LoadFile($yaml_file);
@@ -274,8 +240,7 @@ sub plot_health{
 	if ($@){
 	    croak("$@");
 	}
-	    
-    
+
 #let's figure out how many obsids are present
 	my @uniqobsid = $datapdl{obsid}->uniq->list;
 
@@ -300,6 +265,315 @@ sub plot_health{
 # let's define a new delta time, dtime in hours
 	$datapdl{dtime} = ($datapdl{time} - $tzero)/(60*60);
 	
+
+	$datapdl{dtemp} = $datapdl{aca_temp} - $datapdl{ccd_temp};
+
+	    
+# concatenate any needed data for aggregate analysis
+
+
+	if (defined $config->{task}->{stats_columns}){
+
+
+	    my @columns = @{$config->{task}->{stats_columns}};
+	    for my $col (@columns){
+		if (not defined $agg_data_pdl{$col}){
+		    $agg_data_pdl{$col} = $datapdl{$col};
+		}
+		else{
+		    $agg_data_pdl{$col} = append( $agg_data_pdl{$col}, $datapdl{$col});
+		}
+	    }
+
+	}
+
+	my %dir_data = (
+			dirname => $dir,
+			pdl => \%datapdl,
+			ordered_obsid => \@ordered_obsid,
+			obsid_idx => \%obsid_idx,
+			);
+
+	push @data_array, \%dir_data;
+    }
+
+    $self->pass_data(\@data_array);
+#    return @data_array;
+
+
+    $self->aggregate_pdl(\%agg_data_pdl);
+    
+    return $self;
+
+}
+
+
+
+sub pdl_stats{
+    # return the standard stats for all of the telemetry pdls
+
+    my $self = shift;
+
+    if (defined $self->{pdl_stats}){
+	return $self->{pdl_stats};
+    }
+    else{
+
+	my %agg_pdl = %{$self->aggregate_pdl};
+
+	my @columnlist = keys %agg_pdl;
+	
+	my %stats;
+
+	for my $column (@columnlist){
+	    
+	    if (not defined $agg_pdl{$column}){
+		print "column  $column not defined \n";
+	    }
+	    
+	    my %pdl_stat;
+	    ($pdl_stat{mean},$pdl_stat{rms},$pdl_stat{median},$pdl_stat{min},$pdl_stat{max}) = $agg_pdl{$column}->stats;
+	    
+	    $stats{$column} = \%pdl_stat;
+	}
+
+	$self->{pdl_stats} = \%stats;
+	return $self->{pdl_stats};
+    }
+
+}
+
+
+
+sub clean_bad_points{
+    # delete time slices for pdls that are outside of the specified thresholds
+
+    my $bad_points = shift;
+    my $datapdl = shift;
+
+    my %newdatapdl;
+
+    for my $column (keys %{$bad_points}){
+        next unless defined $datapdl->{$column};
+        my $not_ok = pdl( $bad_points->{$column} );
+        my $dummy = ones($datapdl->{$column});
+        $dummy->($not_ok) .= 0;
+        my $ok = which( $dummy == 1 );
+        for my $origcolumn (keys %{$datapdl}){
+            eval{
+                my $newpdl = $datapdl->{$origcolumn}->($ok);
+                delete $datapdl->{$origcolumn};
+                $newdatapdl{$origcolumn} = $newpdl;
+            };
+            if ($@){
+                croak("clean_bad_points $origcolumn failed $@");
+            }
+        }
+    }
+
+    return %newdatapdl;
+}
+
+
+
+sub polyfit{
+    # fit polynomials as requested (in the config files) to the aggregate pdls 
+    
+    my $self = shift;
+
+    if ( defined $self->fit_result() ){
+	return  $self->fit_result();
+    }
+    else{
+
+	my $agg_pdl = $self->aggregate_pdl();
+
+	my $stats = $self->pdl_stats();
+	my $config = $self->config();
+	
+	if (defined $config->{task}->{polyfit}){
+	
+	    my %fit_result;
+	
+	    for my $fit (@{$config->{task}->{polyfit}}){
+		
+		my $xname = $fit->{x};
+		my $yname = $fit->{y};
+		my $name = $fit->{result};
+		my $min_dx = $fit->{min_dx};
+		
+		
+#	my $x_name = $fit->{x};
+#	my $y_name = $fit->{y};
+		eval 'use PDL::Fit::Polynomial';
+		eval 'use PDL::NiceSlice';
+## let's fit a polynomial to the chunk
+		my $xdata = $agg_pdl->{$xname};
+		my $ydata = $agg_pdl->{$yname};
+		my $xstats = $stats->{$xname};
+		
+		my $order = ($fit->{order});
+		$order = $order + 1;
+		
+		my ($yfit, $coeffs);
+		if (($xstats->{max} - $xstats->{min}) < $min_dx){
+#		    my $diff = $xstats->{max} - $xstats->{min};
+		    $fit_result{$name}->{fitsuccess} = 0;
+#		print "diff is $diff \n";
+		    $coeffs = pdl( $xstats->{mean}, 0 );
+		    $fit_result{$name}->{coeffs} = [$coeffs->list];
+		}
+		else{
+		    ($yfit, $coeffs) = fitpoly1d($xdata, $ydata, $order);
+		    $fit_result{$name}->{fitsuccess} = 1;
+		    $fit_result{$name}->{coeffs} = [$coeffs->list];
+		}	    
+		
+		if ( defined $fit->{points} ){
+		    
+		    my @poly = @{$fit_result{$name}->{coeffs}};
+		    my @points;
+		    
+		    for my $fit_point ( @{ $fit->{points} } ){
+			my $type = $fit_point->{type};
+
+			if ( $type eq 'fit_y' ){
+
+			    my $plug = $fit_point->{plug_x};
+			    my $yval = 0;
+			    for my $i (0 .. $#poly){
+				$yval += $poly[$i] * ($plug**$i);
+			    }
+			    my %point = ( x => $plug,
+					  y => $yval,
+				      );
+			    push @points, \%point;
+			}
+			if ( $type eq 'fit_x' ){
+			    my $y = $fit_point->{solve_y};
+			    my $solve_xmin = $fit_point->{xmin};
+			    my $solve_xmax = $fit_point->{xmax};
+			    my $npoints = 1000;
+			    my $xvals = sequence($npoints+1)*(($solve_xmax - $solve_xmin)/($npoints))+(($solve_xmin));
+			    my $yvals = 0;
+			    for my $i (0 .. $#poly){
+				$yvals += $poly[$i] * ($xvals**$i);
+			    }
+			    my $y_diff = abs($yvals - $y);
+			    my $x_idx = which($y_diff eq min($y_diff));
+
+			    my %point = ( x => $xvals->($x_idx)->sclr,
+					  y => $y,
+				      );
+			    push @points, \%point;
+			}
+			
+		    }
+
+		    $fit_result{points} = \@points;
+
+		}
+		
+	    }
+
+
+	    
+	$self->fit_result(\%fit_result);	
+	}	
+	
+	    return $self;
+    }
+
+}
+
+##***************************************************************************
+sub plot_health{
+##***************************************************************************
+    # gathers a bunch of information, creates PlotHelper objects, and plots
+    # the pass or passes as requested
+
+
+    my $self = shift;
+    my $dirlist = shift;
+    my $config = shift;
+    my $opt = shift;
+
+
+    my @columns = @{$config->{task}->{data_columns}};
+    my @data_array;
+
+
+    for my $dir (@{$dirlist}){
+#	print "dir is $dir \n";
+	
+	my $yaml_file = "${dir}/$config->{general}->{data_file}";
+
+# read in data from YAML file
+#	my $dump = new XML::Dumper;
+#	my $xml = $dump->xml2pl( $xml_file );
+	my $yaml;
+	eval{
+	    $yaml = YAML::LoadFile($yaml_file);
+	};
+	if ($@){
+	    print "Problem loading $yaml_file \n $@ \n";
+	    print "Skipping $dir \n";
+	    next;
+	}
+
+	my %data = %{$yaml->{telem}};
+	my %info;
+	if (defined $yaml->{info}){
+	    %info = %{$yaml->{info}};
+	}
+
+# convert the handy text arrays to pdls
+	my %datapdl;
+	for my $column ( @columns ){
+	    $datapdl{$column} = pdl( @{$data{$column}} );
+	}
+
+
+# exclude marked bad points
+	eval{
+	    if( defined $info{bad_points} ){
+		%datapdl = clean_bad_points( $info{bad_points}, \%datapdl);
+	    }
+	};
+	if ($@){
+	    croak("$@");
+	}
+	 
+#	print $datapdl{obsid};
+	
+    
+#let's figure out how many obsids are present
+	my @uniqobsid = $datapdl{obsid}->uniq->list;
+
+	# and let's store the index slices for each obsid
+# and store the number of the slice of the first instance of the obsid (for sorting)
+	my %obsid_idx;
+	my %obsid_first_idx;
+	for my $i (0 ... $#uniqobsid){
+	    my $obsid = $uniqobsid[$i];
+	    my $obsid_match_idx = which( $datapdl{obsid} == $obsid );
+	    $obsid_idx{$obsid} = $obsid_match_idx;
+	    $obsid_first_idx{$obsid} = $obsid_match_idx->min;
+	    
+	}
+	
+# and let's create an ordered list of the obsids
+	my @ordered_obsid = sort {$obsid_first_idx{$a} <=> $obsid_first_idx{$b}}  keys %obsid_first_idx;
+
+#	use Data::Dumper;
+#	print Dumper @ordered_obsid;
+	
+# and let's defined time t0
+	my $tzero = $datapdl{time}->min;
+	
+# let's define a new delta time, dtime in hours
+	$datapdl{dtime} = ($datapdl{time} - $tzero)/(60*60);
+	
 #    print $datapdl{dtime}->(10);
 	$datapdl{dtemp} = $datapdl{aca_temp} - $datapdl{ccd_temp};
 	
@@ -311,29 +585,6 @@ sub plot_health{
 			);
 
 
-#	use PDL::Fit::Polynomial;
-#	use PDL::NiceSlice;
-## let's fit a polynomial to the pass
-#	if (defined $config->{task}->{polyfit}){
-#	    my $xdata = $datapdl{$config->{task}->{polyfit}->{x}};
-#	    my $data = $datapdl{$config->{task}->{polyfit}->{y}};
-#	    my ($xmean,$xrms,$xmedian,$xmin,$xmax) = $xdata->stats;
-#	    my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $data->stats;
-#	    my $order = ($config->{task}->{polyfit}->{order});
-#	    $order = $order + 1;
-#	    my $min_dx = $config->{task}->{polyfit}->{min_dx};
-#	    my ($yfit, $coeffs);
-#	    if (($xmax - $xmin) < $min_dx){
-#		my $diff = $xmax - $xmin;
-#		print "diff is $diff \n";
-#		$coeffs = pdl( $xmean, 0 );
-#	    }
-#	    else{
-#		($yfit, $coeffs) = fitpoly1d($xdata, $data, $order);
-#	    }
-##	    
-##print $yfit, "\n";
-#	    print $coeffs, "\n";
 
 	push @data_array, \%dir_data;
     }
@@ -341,13 +592,6 @@ sub plot_health{
 
 # if I want 1 pass per plot, run in a loop and put the plots in the pass
 # directory
-
-    my $cumul_data;
-    if (defined $config->{task}->{polyfit}){
-	    
-	$cumul_data = concat_data({ config => $config,
-				    data_array => \@data_array });
-    }
 
 
     if ($config->{task}->{dir_mode} eq 'single'){
@@ -360,7 +604,7 @@ sub plot_health{
 						opt => $opt,
 						data_array => [$dir],
 						ranges => \%colranges,
-						cumul_data => $cumul_data,
+						polyfit => $self->fit_result(),
 					    });
 	    
 	    $plot_helper->plot( 'aca_temp' );
@@ -373,7 +617,7 @@ sub plot_health{
 
 	    $plot_helper->legend();
 	    
-	    $plot_helper->report();
+#	    $plot_helper->report();
 
 	}
 	
@@ -391,7 +635,6 @@ sub plot_health{
 					 opt => $opt,
 					 data_array => \@data_array,
 					 ranges => \%colranges,
-					 cumul_data => $cumul_data,
 				     });
 	
 	
@@ -412,33 +655,6 @@ sub plot_health{
 
 }
 
-sub concat_data{
-
-    my $arg_in = shift;
-    my $data = $arg_in->{data_array};
-    my $config = $arg_in->{config};
-
-    my $polyfit = $config->{task}->{polyfit};
-
-    my $x = null;
-    my $y = null;
-
-    for my $pass (@{$data}){
-		
-	my $x_pass = $pass->{pdl}->{$polyfit->{x}};
-	my $y_pass = $pass->{pdl}->{$polyfit->{y}};
-	$x = append( $x, $x_pass);
-	$y = append( $y, $y_pass);
-    }
-
-    my %cumul_data = ( x => $x,
-		       y => $y, 
-		       name => $config->{task}->{polyfit}->{result},
-		       );
-
-    return \%cumul_data;
-}
-
 
 sub find_pdl_ranges{
 
@@ -448,24 +664,24 @@ sub find_pdl_ranges{
     my @columnlist = keys %{$data_ref->[0]->{pdl}};
 
     my %colranges;
-    
+
     for my $column (@columnlist){
-	
+
 	my ($overall_min, $overall_max);
-#	my ($mindir, $maxdir);
+#      my ($mindir, $maxdir);
 	for my $dir_data (@{$data_ref}){
-	    
+
 
 	    if (not defined $dir_data->{pdl}->{$column}){
 		print "column  $column not defined \n";
 	    }
 	    my ($mean,$rms,$median,$min,$max) = $dir_data->{pdl}->{$column}->stats;
-	
+
 	    if (not defined $overall_min){
 		$overall_min = $min;
-		
+
 	    }
-	    else{ 
+	    else{
 		if ($min < $overall_min){
 		    $overall_min = $min;
 		}
@@ -473,55 +689,167 @@ sub find_pdl_ranges{
 	    if (not defined $overall_max){
 		$overall_max = $max;
 	    }
-	    else{ 
+	    else{
 		if ($max > $overall_max){
 		    $overall_max = $max;
 		}
 	    }
 	}
-	
-	my %range = (
-		     min => $overall_min,
-		     max => $overall_max,
-		     );
-	
+
+       my %range = (
+                    min => $overall_min,
+                    max => $overall_max,
+                    );
+
 	$colranges{$column} = \%range;
-	
+
 
     }
-    
+
     return %colranges;
 }
-	
 
 
-sub clean_bad_points{
+
+
+sub save_stats{
+
+    my $self = shift;
+    my $file = shift;
+    my %opt = %{$self->opt()};
     
-    my $bad_points = shift;
-    my $datapdl = shift;
 
-    my %newdatapdl;
+    my %summary;
+    if (defined $self->fit_result()){
+        $summary{fit_result} = $self->fit_result();
+    }
+    $summary{stats} = $self->pdl_stats();
+    my $summary_yaml = YAML::Dump(%summary);
 
-    for my $column (keys %{$bad_points}){
-	next unless defined $datapdl->{$column};
-	my $not_ok = pdl( $bad_points->{$column} );
-	my $dummy = ones($datapdl->{$column});
-	$dummy->($not_ok) .= 0;
-	my $ok = which( $dummy == 1 );
-	for my $origcolumn (keys %{$datapdl}){
-	    eval{
-		my $newpdl = $datapdl->{$origcolumn}->($ok);
-		delete $datapdl->{$origcolumn};
-		$newdatapdl{$origcolumn} = $newpdl;
-	    };
-	    if ($@){
-		croak("clean_bad_points $origcolumn failed $@");
+#    if ($opt{verbose}){
+#        print $summary_yaml, "\n";
+#    }
+
+    my $destfile = $file;
+
+    if( $self->config()->{task}->{dir_mode} eq 'single'){
+	my $destdir = $self->{passlist}->[0];
+	$destfile = "$destdir" . "/" . $self->config()->{task}->{stats_file};
+    }
+    
+    if (defined $destfile){
+	unless ($opt{dryrun}){
+	    io($destfile)->print($summary_yaml);
+	}
+    }
+}
+
+
+sub report{
+
+    my $self = shift;
+    my $savefile = shift;
+    my %opt = %{$self->opt()};
+
+    my $report_config = $self->config()->{report};
+
+    my $template_file = "${SHARE}/" . $report_config->{report_text};
+    my $report_text = io($template_file)->slurp;
+
+    my %report;
+
+    my $pass_dir = $self->config()->{general}->{pass_dir};
+
+    my $full_path_dirname;
+    if ($self->config()->{task}->{dir_mode} eq 'single'){
+	my $pass = $self->passlist->[0];
+	$full_path_dirname = $pass;
+	my $dirname = $full_path_dirname;
+	$dirname =~ s/$pass_dir\/?//;
+	push @{$report{pass_list}}, $dirname;
+    }
+
+    
+    for my $plotcfg_name (keys %{$self->config()->{plot}}){
+	my $plotcfg = $self->config()->{plot}->{$plotcfg_name};
+	if (defined $plotcfg->{warn}){
+	    for my $key (%{$plotcfg->{warn}}){
+		if ($key eq 'max'){
+		    my $datamax = $self->pdl_stats->{$plotcfg_name}->{max};
+		    my $warnmax = $plotcfg->{warn}->{$key};
+		    if ($datamax > $warnmax){
+			if (scalar(@{$report{pass_list}}) == 1){
+			    push @{$report{warnings}}, sprintf("For pass: " . $report{pass_list}->[0] );
+			}
+			push @{$report{warnings}}, "Warning $plotcfg_name exceeded defined threshold";
+			push @{$report{warnings}}, "Threshold: $warnmax";
+			push @{$report{warnings}}, "$plotcfg_name high Value: $datamax";
+		    }
+		}
 	    }
 	}
     }
+    if ( not defined $report{warnings}){
+	push @{$report{warnings}}, "No warnings reported";
+    }
+    else{
+	if (scalar(@{$report{pass_list}}) == 1){
+	    use Mail::Send;
+	    my $msg = new Mail::Send;
+	    $msg->to($self->config()->{general}->{notify});
+	    $msg->subject("Perigee Health Notification");
+	    my $fh = $msg->open;
+	    my $message = join( "\n", @{$report{warnings}} );
+	    print $fh $message;
+	    $fh->close;
+    	}
+    }
+	
+    
+    my %ranges = %{$self->pdl_stats()};
+    $report{aca_temp_max} = sprintf( "%6.1f", $ranges{aca_temp}->{max});
+    $report{aca_temp_min} = sprintf( "%6.1f", $ranges{aca_temp}->{min});
+    $report{aca_temp_mean} = sprintf( "%6.1f", $ranges{aca_temp}->{mean});
+    $report{ccd_temp_max} = sprintf( "%6.1f", $ranges{ccd_temp}->{max});
+    $report{ccd_temp_min} = sprintf( "%6.1f", $ranges{ccd_temp}->{min});
+    $report{ccd_temp_mean} = sprintf( "%6.1f", $ranges{ccd_temp}->{mean});
+    $report{dac_max} = sprintf( "%6.1f", $ranges{dac}->{max});
+    $report{dac_min} = sprintf( "%6.1f", $ranges{dac}->{min});
+    $report{dac_mean} = sprintf( "%6.1f", $ranges{dac}->{mean});	
 
-    return %newdatapdl;
+
+    for my $keyword (keys %report){
+	my $file_keyword = uc($keyword);
+	if (ref($report{$keyword}) eq 'ARRAY'){
+	    my $text = '';
+	    for my $line (@{$report{$keyword}}){
+		$text .= "$line \n";
+	    }
+	    $report_text =~ s/%${file_keyword}%/$text/g;
+	}
+	else{
+	    $report_text =~ s/%${file_keyword}%/$report{$keyword}/g;
+	}
+    }
+
+
+
+    my $destfile = $savefile;
+    if( $self->config()->{task}->{dir_mode} eq 'single'){
+        my $destdir = $self->{passlist}->[0];
+        $destfile = "$destdir" . "/" . $report_config->{file};
+    }
+
+    if (defined $destfile){
+        unless ($opt{dryrun}){
+            io($destfile)->print($report_text);
+        }
+    }
+
+
+
 }
+
 
 1;    
 
@@ -538,7 +866,6 @@ use Class::MakeMethods::Standard::Hash(
 						       opt
 						       data_array
 						       data_ranges
-						       cumul_data
 						       coeffs
 						       polyfit
 						       )
@@ -569,9 +896,11 @@ sub new{
     $self->data_ranges($arg_in->{ranges});
     $self->opt($arg_in->{opt});
 
-    if (defined $arg_in->{cumul_data}){
-	$self->cumul_data($arg_in->{cumul_data});
+    if (defined $arg_in->{polyfit}){
+	$self->polyfit($arg_in->{polyfit});
     }
+
+
 
     return $self;
 
@@ -723,7 +1052,7 @@ sub make_plot_a_vs_b{
     for my $dir_num ( 0 ... scalar(@{$data_ref})-1 ){
 	
 	my $datadir = $data_ref->[$dir_num];
-	print "dir is $datadir \n";
+
         my @ordered_obsid = @{$datadir->{ordered_obsid}};
 	my %obsid_idx = %{$datadir->{obsid_idx}};
 	my %datapdl = %{$datadir->{pdl}};
@@ -823,10 +1152,10 @@ sub plot{
 
     if ( $curr_config->{mode} eq 'summary'){
 	push @pgs_array, make_plot_summary({ 
-	                                     plot_config => $curr_config,
-					     data_array => $data_ref,
-					     color_array => $self->config()->{task}->{allowed_colors},
-					 });
+	    plot_config => $curr_config,
+	    data_array => $data_ref,
+	    color_array => $self->config()->{task}->{allowed_colors},
+	});
 
     }
     else{
@@ -843,7 +1172,6 @@ sub plot{
 		x_range => $colrange->{$x_type},
 		oplot => $curr_config->{oplot},
 		data => $data_ref,
-		cumul_data => $self->cumul_data(),
 		config => $self->config(),
 	    });
 	}
@@ -865,81 +1193,6 @@ sub plot{
 
 }
 
-sub make_polyfit{
-
-    my $self = shift;
-    my $arg_in = shift;
-    my $config = $arg_in->{config};
-    my $element = $arg_in->{element};
-    my $cumul_data = $arg_in->{cumul_data};
-    my $data = $arg_in->{data};
-
-    print Dumper $data;
-    my $polyname = $element->{polyname};
-
-    eval 'use PDL::Fit::Polynomial';
-    eval 'use PDL::NiceSlice';
-## let's fit a polynomial to the pass
-    my $xdata = $cumul_data->{x};
-    my $ydata = $cumul_data->{y};
-    my ($xmean,$xrms,$xmedian,$xmin,$xmax) = $xdata->stats;
-    my ($ymean,$yrms,$ymedian,$ymin,$ymax) = $ydata->stats;
-    my $order = ($config->{task}->{polyfit}->{order});
-    $order = $order + 1; #fitpoly has a weird idea of order
-    my $min_dx = $config->{task}->{polyfit}->{min_dx};
-    my ($yfit, $coeffs);
-#	    print "min: $xmin max: $xmax, dx: $min_dx \n";
-    if (($xmax - $xmin) < $min_dx){
-	my $diff = $xmax - $xmin;
-	return undef;
-    }
-    else{
-	my %fitpoint;
-	($yfit, $coeffs) = fitpoly1d($xdata, $ydata, $order);
-	my @poly = $coeffs->list;
-	# if any points were requested, define them
-		for my $fitset (keys %{$config->{task}->{polyfit}->{points}}){
-		    my $fit_def = $config->{task}->{polyfit}->{points}->{$fitset};
-		    if (defined $fit_def->{x}){
-			my $plug = $fit_def->{x};
-			my $yval = 0;
-			for my $i (0 .. $#poly){
-			    $yval += $poly[$i] * ($plug**$i);
-			}
-			$fitpoint{$fitset} =  { x => $plug,
-						y => $yval,
-					    }
-		    }
-		    if (defined $fit_def->{y}){
-			my $solve_y = $fit_def->{y};
-			my $solve_xmin = $fit_def->{xmin};
-			my $solve_xmax = $fit_def->{xmax};
-			my $npoints = 1000;
-			my $xvals = sequence($npoints+1)*(($solve_xmax - $solve_xmin)/($npoints))+(($solve_xmin));
-			my $yvals = 0;
-			for my $i (0 .. $#poly){
-			    $yvals += $poly[$i] * ($xvals**$i);
-			}
-			my $y_diff = abs($yvals - $solve_y);
-			my $x_idx = which($y_diff eq min($y_diff));
-
-			$fitpoint{$fitset} = { x => $xvals->($x_idx)->sclr,
-					       y => $solve_y,
-					   };
-		    }
-		}
-	
-	if ($self->{opt}->{verbose}){
-	    print Dumper %fitpoint;
-	}
-	$self->polyfit( \%fitpoint );
-	$self->coeffs( \@poly);
-
-	return $coeffs->list();
-    }
-    
-}
-
 sub make_oplot{
     
     my $self = shift;
@@ -948,7 +1201,6 @@ sub make_oplot{
     my @oplot = @{$arg_in->{oplot}};
     my $y_range = $arg_in->{y_range};
     my $x_range = $arg_in->{x_range};
-    my $cumul_data = $arg_in->{cumul_data};
     my $config = $arg_in->{config};
     
     my @plot_array;
@@ -978,45 +1230,33 @@ sub make_oplot{
 
 	if ($element->{type} eq 'polyfit'){
 
-	    my @poly = $self->make_polyfit({ config => $config,
-				     element => $element,
-				      data => $data,
-				     cumul_data => $cumul_data,
-				     });
+	    
+	    my $fit = $self->polyfit();
 
-				     
-	    if (scalar(@poly)){
+	    my $name = $element->{polyname};
 
-		my $npoints = $element->{npoints};
-		my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
-		my $yvals = 0;
-		for my $i (0 .. $#poly){
-		    $yvals += $poly[$i] * ($xvals**$i);
-		}
-#		# Prediction
-		push @plot_array, ('x' => [ $xvals->list ],
-				   'y' => [ $yvals->list ],
-				   color => $element->{color},
-				   options => $element->{options},
-				   plot => $element->{plot_type},
-				   );
+	    if ( defined $fit->{$name} ){
+
+		my @poly = @{$fit->{$name}->{coeffs}};
 		
+		if (scalar(@poly)){
+		    
+		    my $npoints = $element->{npoints};
+		    my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
+		    my $yvals = 0;
+		    for my $i (0 .. $#poly){
+			$yvals += $poly[$i] * ($xvals**$i);
+		    }
+#		# Prediction
+		    push @plot_array, ('x' => [ $xvals->list ],
+				       'y' => [ $yvals->list ],
+				       color => $element->{color},
+				       options => $element->{options},
+				       plot => $element->{plot_type},
+				       );
+		    
+		}
 	    }
-##	    
-##print $yfit, "\n";
-#	    print $coeffs, "\n";
-#	    
-#
-##	    for my $dir_num ( 0 ... scalar(@{$data})-1 ){
-##		my $datadir = $data->[$dir_num];
-#		#my @ordered_obsid = @{$datadir->{ordered_obsid}};
-#		#my %obsid_idx = %{$datadir->{obsid_idx}};
-#		#my %datapdl = %{$datadir->{pdl}};
-#		#my $y_pdl = zeroes($datapdl{$y_type});
-#		my @poly = @{$datadir->{$polyname}};
-#	    }
-#
-#	}
 
 	}
     }
@@ -1133,103 +1373,24 @@ my $aspect = .5;
     else{
 	print "would have made $dev\n";
     }
-}
-
-sub report{
-
-    my $self = shift;
-    my $report_config = $self->config()->{report};
-    my $filename = $report_config->{file};
-
-    my $report_text = "";
-
-    $report_text .= "Perigee Health Report\n\n";
-
-    $report_text .= "Report for these passes:\n\n";
-
-    my $pass_dir = $self->config()->{general}->{pass_dir};
-
-    my $full_path_dirname;
-    if ($self->config()->{task}->{dir_mode} eq 'single'){
-	my $pass = $self->data_array()->[0];
-	$full_path_dirname = $pass->{dirname};
-	my $dirname = $full_path_dirname;
-	$dirname =~ s/$pass_dir\/?//;
-	$report_text .= "\t $dirname \n";
-    }
+}#
+1;
 
 
-    $report_text .= "---------------------------------------------------\n";
-    $report_text .= "Warnings\n";
-    $report_text .= "---------------------------------------------------\n";
-    $report_text .= "\n";
-    
-    my $warning = "";
-    for my $plotcfg_name (keys %{$self->config()->{plot}}){
-	my $plotcfg = $self->config()->{plot}->{$plotcfg_name};
-	if (defined $plotcfg->{warn}){
-	    for my $key (%{$plotcfg->{warn}}){
-		if ($key eq 'max'){
-		    my $datamax = $self->data_ranges()->{$plotcfg_name}->{max};
-		    my $warnmax = $plotcfg->{warn}->{$key};
-		    if ($datamax > $warnmax){
-			$warning .= "Warning $plotcfg_name exceeded defined threshold\n";
-			$warning .= "Threshold: $warnmax\n";
-			$warning .= "$plotcfg_name high Value: $datamax\n";
-		    }
-		}
-	    }
-	}
-    }
-    if ($warning eq ""){
-	$warning = "No warnings reported\n";
-    }
-
-    $report_text .= "$warning\n\n";
-
-
-    $report_text .= "---------------------------------------------------\n";
-    $report_text .= "Ranges\n";
-    $report_text .= "---------------------------------------------------\n";
-
-    my %ranges = %{$self->data_ranges()};
-
-
-    $report_text .= "ACA Housing Temperature Range (deg C)\n";
-    $report_text .= "\tmax:" . sprintf($ranges{aca_temp}->{max}) . "\n";
-    $report_text .= "\tmin:" . sprintf($ranges{aca_temp}->{min}) . "\n\n";
-
-    $report_text .= "CCD Temperature Range (deg C)\n";
-    $report_text .= "\tmax:". sprintf($ranges{ccd_temp}->{max}) . "\n";
-    $report_text .= "\tmin:". sprintf($ranges{ccd_temp}->{min}) . "\n\n";
-
-    $report_text .= "TEC DAC Control Level Range\n";
-    $report_text .= "\tmax:" . sprintf($ranges{dac}->{max}) . "\n";
-    $report_text .= "\tmin:" . sprintf($ranges{dac}->{min}) . "\n\n";
-
-    $report_text .= "\n";
-
-
-
-    $report_text .= "---------------------------------------------------\n";
-    $report_text .= "Fitpoints\n";
-    $report_text .= "---------------------------------------------------\n\n";
-
-    $report_text .= "With a linear fit of the available DAC vs Delta Temp data\n\n";
-
-    $report_text .= "TEC DAC will reach " . $self->polyfit()->{dtempfit}->{y};
-    $report_text .= ", when the ACA - CCD temp is " . $self->polyfit()->{dtempfit}->{x};
-    $report_text .= "\n\n";
-
-    $report_text .= "When the ACA - CCD temp is " . $self->polyfit()->{dacfit}->{x};
-    $report_text .= ", the TEC DAC level should be " . $self->polyfit()->{dacfit}->{y};
-    $report_text .= "\n\n";
-    
-    my $outfile = io("${full_path_dirname}/$filename");
-    $outfile->print($report_text);
-    
-
-
-}
 
 1;
+
+=pod
+
+=head1 NAME
+
+Ska::Perigee::DataObject - Perigee pass data object construction and manipulation
+
+=head1 SYNOPSIS
+
+=head1 DESCRIPTION
+
+Object to store all of the perigee pass data for a pass or passes to
+aid with plotting and generation of statistics.
+
+=cut

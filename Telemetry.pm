@@ -1,4 +1,4 @@
-package Telemetry::BinTable::Header;
+package Ska::Telemetry::BinTable::Header;
 
 use strict;
 use warnings;
@@ -12,9 +12,9 @@ sub new{
 
 }
 
-1;
 
-package Telemetry::BinTable::Table;
+
+package Ska::Telemetry::BinTable::Table;
 
 use strict;
 use warnings;
@@ -27,10 +27,12 @@ sub new{
     return $self;
 
 }
-   
-1;
 
-package Telemetry::BinTable;
+
+   
+
+
+package Ska::Telemetry::BinTable;
 # class to store the header of a fits file and 
 # to read and store the binary table
 
@@ -123,7 +125,7 @@ sub process{
 	@columns = @{$self->{columns}};
     }
     my %fits = fits_read_bintbl( $self->file, @columns );
-    my $table = Telemetry::BinTable::Table->new(\%fits);
+    my $table = Ska::Telemetry::BinTable::Table->new(\%fits);
     $self->bintable($table);
     $self->length( $fits{time}->nelem );
     my @order;
@@ -164,25 +166,25 @@ sub process{
 	}
 	
     }
-    my $newheader = Telemetry::BinTable::Header->new(\%data);
+    my $newheader = Ska::Telemetry::BinTable::Header->new(\%data);
     $self->hdrtable($newheader);
     $self->order(\@order);
 }
 
-1;
 
 
-package Telemetry::BinTable::ACA0;
+
+package Ska::Telemetry::BinTable::ACA0;
 
 use strict;
 use warnings;
 
-use base 'Telemetry::BinTable';
+use base 'Ska::Telemetry::BinTable';
 
 use PDL;
 use PDL::NiceSlice;
 
-our @ISA =  qw( Telemetry::BinTable );
+our @ISA =  qw( Ska::Telemetry::BinTable );
 
 # Set some global vars with directory locations
 
@@ -204,7 +206,7 @@ sub define_template{
 
 sub process{
     my $self = shift;
-    $self->Telemetry::BinTable::process();
+    $self->Ska::Telemetry::BinTable::process();
     # Convert any image data to 8x8 PDL
     my $imgraw = $self->bintable->{imgraw};
     my $templateraw = zeroes( 8, 8, $self->length);
@@ -212,7 +214,7 @@ sub process{
     $templateraw(0:($dim-1), 0:($dim-1), :) .= $imgraw;
     $self->bintable->{imgraw} = $templateraw;
     # Add any columns that would only exist in the 8x8 data
-    my $template = Telemetry::BinTable->new({ file => $template_file });
+    my $template = Ska::Telemetry::BinTable->new({ file => $template_file });
     $template->process();
     for my $key ( keys %{$template->bintable} ){
 	next if ( defined $self->bintable->{$key} );
@@ -226,15 +228,15 @@ sub process{
 }    
 
 
-1;
 
 
 
 
 
-package Telemetry::Interval;
 
-use base 'Telemetry::BinTable';
+package Ska::Telemetry::Interval;
+
+use base 'Ska::Telemetry::BinTable';
 
 use strict;
 use warnings;
@@ -296,12 +298,12 @@ sub combine_telem{
 	my $telem_chunk; 
 	if (defined $self->telemtype()){
 	    if ($self->telemtype() eq 'aca0'){
-		$telem_chunk = Telemetry::BinTable::ACA0->new({ file => $file, columns => $self->columns() });
+		$telem_chunk = Ska::Telemetry::BinTable::ACA0->new({ file => $file, columns => $self->columns() });
 		$telem_chunk->process();
 	    }
 	}
 	else{
-	    $telem_chunk = Telemetry::BinTable->new({ file => $file, columns => $self->columns() });
+	    $telem_chunk = Ska::Telemetry::BinTable->new({ file => $file, columns => $self->columns() });
 	    $telem_chunk->process();
 	}
 
@@ -343,7 +345,7 @@ sub combine_telem{
 
     }
 
-    my $telem = Telemetry::BinTable::Table->new(\%telem);
+    my $telem = Ska::Telemetry::BinTable::Table->new(\%telem);
     $self->telem($telem);
     return $self;
 }
@@ -369,19 +371,19 @@ sub time_dim{
     return $time_dim;
 }
 
-1;
 
 
 
-package Telemetry::Interval::ACA0;
+
+package Ska::Telemetry::Interval::ACA0;
 
 use strict; 
 use warnings;
 use Carp;
 use Data::Dumper;
-use base 'Telemetry::Interval';
+use base 'Ska::Telemetry::Interval';
 
-our @ISA =  qw( Telemetry::Interval );
+our @ISA =  qw( Ska::Telemetry::Interval );
 
 sub new{
     my $class = shift;
@@ -389,7 +391,7 @@ sub new{
 
     $arg_in->{telemtype} = 'aca0';
 
-    my $self = Telemetry::Interval->new($arg_in);
+    my $self = Ska::Telemetry::Interval->new($arg_in);
     bless $self, $class;
     return $self;
 
@@ -399,5 +401,108 @@ sub new{
 
 1;
 
+
+=pod
+
+=head1 NAME
+
+Ska::Telemetry - Object-oriented telemetry handling routines
+
+=head1 SYNOPSIS
+
+The main feature of this module is the Interval module within it which reads in telemetry 
+and methods to concatenate and retrieve values from it.
+
+
+ use Ska::Telemetry;
+
+ my @ccdmcols = ('time', 'quality', 'cobsrqid' );
+ my @ccdm_file_list = glob("ccdm*gz");
+
+ my $ccdm = Ska::Telemetry::Interval->new({ 
+                                           file_list => \@ccdm_file_list, 
+                                           columns => \@ccdmcols
+                                          });
+ $ccdm->combine_telem();
+
+There are is a subclass to deal with aca0 telemetry (which is strange).
+
+ my %aca0;
+ for my $slot ( 0 ... 7 ){
+     my @file_list = glob("aca*_${slot}_*gz");
+     my $aca_telem = Ska::Telemetry::Interval::ACA0->new({ file_list => \@file_list })->combine_telem();
+     $aca0{$slot} =  $aca_telem;
+ }
+
+=head1 EXPORT
+
+None.
+
+=head1 PUBLIC MODULES
+
+ * Ska::Telemetry::Interval
+ * Ska::Telemetry::Interval::ACA0
+
+There are more modules/classes, but they are intended for use by Interval and Interval::ACA0 .
+
+=head1 METHODS
+
+The interval classes expect the optional following arguments to their constructor.
+
+=head2 new()
+
+ new({ file_list => \@file_list,
+       columns => \@columns,
+       telemtype => 'string',
+    });
+
+file_list should be an array reference of telemetry file names of the same type. 
+
+columns should be an array reference of the requested fits columns 
+
+telemtype is a string label for the type of telemetry, presently 'aca0' is the only recognized special type
+
+All arguments are optional to the constructor and may be specified later with the individual set methods.
+
+=head2 file_list()
+
+file_list( \@file_list ) ... see new()
+
+=head2 columns()
+
+columns( \@columns ) ... see new()
+
+=head2 telemtype()
+
+telemtype('string') ... see new()
+
+=head2 combine_telem()
+
+combine_telem(); reads the telemetry from the files specified in the file_list;
+concatenates the telemetry within the object and stores it to be accessed via the telem() method
+
+=head2 telem()
+
+Get/set method for all of the telemetry from the loaded telemetry files
+
+=head1 DESCRIPTION
+
+Basically, the SYNOPSIS.  This just creates objects that have all of the telemetry from specified files loaded into a hash of PDLs.
+
+
+=head1 AUTHOR
+
+Jean Connelly ( jconnelly@localdomain )
+
+=head1 COPYRIGHT AND LICENSE
+
+Copyright (C) 2007 by Smithsonian Astrophysical Observatory
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8.0 or,
+at your option, any later version of Perl 5 you may have available.
+
+
+=cut
 
 

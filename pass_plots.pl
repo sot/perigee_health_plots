@@ -43,9 +43,22 @@ usage( 1 )
 my ($sec,$min,$hour,$mday,$mon,$year,$wday,$yday,$isdst) = gmtime;
 my $now = sprintf ("%04d:%03d:%02d:%02d:%06.3f", $year+1900, $yday+1, $hour, $min, $sec);
 
-require "./RetrievePerigeeTelem.pm";
+#require "./RetrievePerigeeTelem.pm";
 
-my $retrieve_status = RetrievePerigeeTelem::retrieve_telem(\%opt);
+use Ska::Perigee::Data;
 
+use Data::Dumper;
+
+my $retrieve_status = Ska::Perigee::Data::retrieve_telem(\%opt);
+
+my $parse_status = Ska::Perigee::Data::parse_pass_telem(\%opt);
+
+my $pass_status = Ska::Perigee::Data::pass_stats_and_plots(\%opt);
+
+my $summary_status = Ska::Perigee::Data::month_stats_and_plots(\%opt);
+
+my $report_status = Ska::Perigee::Data::make_reports(\%opt);
+
+my $install_status = Ska::Perigee::Data::install_stats_and_plots(\%opt);
 
 

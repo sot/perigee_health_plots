@@ -40,18 +40,31 @@ data_columns:
  - ccd_temp
  - dac
 
+plots:
+ - aca_temp.ps
+ - ccd_temp.ps
+ - dac.ps
+ - dacvsdtemp.ps
+
+stats_columns:
+ - aca_temp
+ - ccd_temp
+ - dac
+ - dtemp
+
+stats_file: stats.yaml
 
 polyfit:
-  x: dtemp
-  y: dac
-  order: 1
-  result: dac_vs_dtemp_fit
-  min_dx: .1
-  points:
-    dacfit:
-       x: 38
-    dtempfit:
-       y: 500
+ - x: dtemp
+   y: dac
+   order: 1
+   result: dac_vs_dtemp_fit
+   min_dx: .1
+   points:
+     - type: fit_y
+       plug_x: 38
+     - type: fit_x
+       solve_y: 500
 # and a range to solve for y numerically
        xmin: 20
        xmax: 60       
@@ -170,5 +183,6 @@ dac_vs_dtemp:
 --- report
 ---
 
-   file: report.txt
-      
+file: report.txt	
+
+report_text: report_template.txt
