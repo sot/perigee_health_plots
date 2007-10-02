@@ -45,6 +45,7 @@ stats_columns:
   - aca_temp
   - dac
   - ccd_temp
+  - time
 
 polyfit:
  - x: dtemp

@@ -50,7 +50,9 @@ stats_columns:
  - aca_temp
  - ccd_temp
  - dac
+ - time
  - dtemp
+ - dtime
 
 stats_file: stats.yaml
 

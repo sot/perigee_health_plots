@@ -135,7 +135,7 @@ sub select_analyzed_dir{
     my @todo_directories;
 
 # first get a list of directories.
-    my @telem_dirs = glob("${WORKING_DIR}/????:*");
+    my @telem_dirs = glob("${WORKING_DIR}/????/????:*");
 
 
 # first, if time range specified for multi or summary plots,
@@ -635,6 +635,7 @@ sub plot_health{
 					 opt => $opt,
 					 data_array => \@data_array,
 					 ranges => \%colranges,
+					 polyfit => $self->fit_result(),
 				     });
 	
 	
@@ -1229,7 +1230,6 @@ sub make_oplot{
 	}
 
 	if ($element->{type} eq 'polyfit'){
-
 	    
 	    my $fit = $self->polyfit();
 
@@ -1260,6 +1260,7 @@ sub make_oplot{
 
 	}
     }
+    
     return  @plot_array;
 }
 

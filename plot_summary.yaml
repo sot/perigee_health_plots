@@ -30,6 +30,10 @@ data_columns:
  - ccd_temp
  - dac
 
+
+
+
+
 --- plot
 ---
 
@@ -111,17 +115,17 @@ dac_vs_dtemp:
    oplot:
    # array of hashes to overplot
    # so far, code only knows how to plot 2rd order polynomials
-#     - type: poly
-#       poly:
-#         - 114.474
-#         - 0.403096
-#         - 0.236348
-#       npoints: 100
-#       plot_type: line
-#       color:
-#          line: black
-#       options:
-#          linestyle: dashed
+     - type: poly
+       poly:
+         - 114.474
+         - 0.403096
+         - 0.236348
+       npoints: 100
+       plot_type: line
+       color:
+          line: black
+       options:
+          linestyle: dashed
      - type: polyfit
        polyname: dac_vs_dtemp_fit
        npoints: 100

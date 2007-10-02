@@ -203,10 +203,14 @@ sub retrieve_telem{
 	my %pass = %{$passes{$pass_start}};
 	
 	my $tstart = date2time($pass{tstart});
+	
+	$pass{tstart} =~ /^(\d{4}):/;
+    my $year = $1;
+    
 	my $tstop = date2time($pass{tstop});
 	
 	# skip retrieve if directory already exists
-	if ( -e "${WORKING_DIR}/$pass{tstart}/$pass_time_file"){
+	if ( -e "${WORKING_DIR}/${year}/$pass{tstart}/$pass_time_file"){
 	    if ($opt{verbose}){
 		print "Skipping $pass{tstart}; already exists \n";
 	    }
@@ -226,9 +230,9 @@ sub retrieve_telem{
 	}
 	
 	if ($opt{verbose}){
-	    print "mkdir ${WORKING_DIR}/$pass{tstart} \n";
+	    print "mkdir ${WORKING_DIR}/${year}/$pass{tstart} \n";
 	}
-	mkpath("${WORKING_DIR}/$pass{tstart}");
+	mkpath("${WORKING_DIR}/${year}/$pass{tstart}");
 	
 	# Retrieve the telemetry needed to run the idl to make the plots
 	
@@ -239,7 +243,7 @@ sub retrieve_telem{
 							 tstop     => $tstop, 
 							 prod      => "aca0[*.fits]",
 							 file_glob => "*.fits*",
-							 dir       => $WORKING_DIR . "/$pass{tstart}/",
+							 dir       => $WORKING_DIR . "/${year}/$pass{tstart}/",
 							 loud      => 0,
 							 timeout => 1000,
 							 );
@@ -249,7 +253,7 @@ sub retrieve_telem{
 							 tstop     => $tstop,
 							 prod => "ccdm0[*_10_*]",
 							 file_glob => "*_10_*",
-							 dir       => $WORKING_DIR . "/$pass{tstart}/",
+							 dir       => $WORKING_DIR . "/${year}/$pass{tstart}/",
 							 loud      => 0,
 							 timeout => 1000,
 							 );
@@ -260,10 +264,10 @@ sub retrieve_telem{
 	}
 	
 	
-	my @filelist = glob( "${WORKING_DIR}/$pass{tstart}/*");
+	my @filelist = glob( "${WORKING_DIR}/${year}/$pass{tstart}/*");
 	
 	if (scalar(@filelist) == 0 ){
-	    rmtree("${WORKING_DIR}/$pass{tstart}");
+	    rmtree("${WORKING_DIR}/${year}/$pass{tstart}");
 	    next;
 	}
 	else{
@@ -271,7 +275,7 @@ sub retrieve_telem{
 	    $status{last_pass} = $pass{tstart};
 	    $status{updated} = 1;
 	    # put out a little text file with the tstart and stop time of the pass
-	    my $notes = io("${WORKING_DIR}/$pass{tstart}/$pass_time_file");
+	    my $notes = io("${WORKING_DIR}/${year}/$pass{tstart}/$pass_time_file");
 	    $notes->print("TSTART\tTSTOP\n");
 	    $notes->print("$pass{tstart}\t$pass{tstop}\n");
 	    
@@ -631,7 +635,7 @@ sub month_stats_and_plots{
     }
     $config{general}->{pass_dir} = $WORKING_DIR;
     
-    my @passes = glob("${WORKING_DIR}/????:*");
+    my @passes = glob("${WORKING_DIR}/????/????:*");
     
     my $pass_time_file = $config{general}->{pass_time_file};
     
@@ -854,12 +858,12 @@ sub install_plots{
     if ($@){
 	croak(__PACKAGE__ .": !$@");
     }
-    use CGI qw/ :standard /;
+
 
 
 
     my %opt = %{$opt_ref};
-
+    
     my $WEB_DIR = "${SKA}/www/ASPECT/${TASK}/";
     my $WORKING_DIR = $ENV{PWD};
     my $SUMMARY_DIR;
@@ -887,8 +891,7 @@ sub install_plots{
     
     print "Installing pass plots to $WEB_DIR \n";
     
-    
-    my $source_plot_ext = $config{task}->{source_plot_ext};
+        my $source_plot_ext = $config{task}->{source_plot_ext};
     my @source_plots = @{$config{task}->{source_plots}};
     my @dest_plots = @{$config{task}->{dest_plots}};
     
@@ -897,7 +900,7 @@ sub install_plots{
     
     my %time_tree;
     
-    my @passes = glob("${WORKING_DIR}/????:*");
+    my @passes = glob("${WORKING_DIR}/????/????:*");
     
     for my $pass_idx ( 0 ... $#passes ){
 	
@@ -913,8 +916,8 @@ sub install_plots{
 	$ct_tstart =~ /(\d{4})-(\d{2})-.*/;
 	my $year = $1;
 	my $month = $2;
-	push @{$time_tree{$year}->{$month}}, $tstart;
 	
+	push @{$time_tree{$year}->{$month}}, $tstart;
 	
 	my @plots = glob("${pass}/*.${source_plot_ext}");
 	if (scalar(@plots)){
@@ -925,7 +928,7 @@ sub install_plots{
 	    }
 	    
 	    unless( $opt{dryrun} ){
-		mkpath("$WEB_DIR/$tstart");
+		mkpath("$WEB_DIR/${year}/$tstart");
 	    }
 	    else{
 		print "Would have converted: \n";
@@ -933,13 +936,15 @@ sub install_plots{
 	    
 	    for my $plot_idx (0 .. $#source_plots){
 		unless( $opt{dryrun} ){
-		    system(" convert ${pass}/$source_plots[$plot_idx] ${WEB_DIR}/${tstart}/$dest_plots[$plot_idx]"); 
+		    system(" convert ${pass}/$source_plots[$plot_idx] ${WEB_DIR}/${year}/${tstart}/$dest_plots[$plot_idx]"); 
 		}
 		else{
-		    print "${pass}/$source_plots[$plot_idx] to ${WEB_DIR}/${tstart}/$dest_plots[$plot_idx] \n";
+		    print "${pass}/$source_plots[$plot_idx] to ${WEB_DIR}/${year}/${tstart}/$dest_plots[$plot_idx] \n";
 		}
 	    }
-	    
+
+	    use CGI;
+
 	    my $index = new CGI;
 	    my $out_string;
 	    
@@ -958,7 +963,10 @@ sub install_plots{
 		my $prev_pass = "${prev}/$pass_time_file";
 		my $prev_pass_times = parse_table($prev_pass);
 		my $prev_tstart = $prev_pass_times->[0]->{TSTART};
-		$nav_links .= "<A HREF=\"${base_url}/${prev_tstart}\">PREV</A><br />\n";
+		my $ct_prev_tstart = Chandra::Time->new($prev_tstart)->fits();
+		$ct_prev_tstart =~ /(\d{4})-(\d{2})-.*/;
+		my $prev_year = $1;
+		$nav_links .= "<A HREF=\"${base_url}/${prev_year}/${prev_tstart}\">PREV</A><br />\n";
 		
 	    }
 	    
@@ -968,7 +976,10 @@ sub install_plots{
 		my $next_pass = "${next}/$pass_time_file";
 		my $next_pass_times = parse_table($next_pass);
 		my $next_tstart = $next_pass_times->[0]->{TSTART};
-		$nav_links .= "<A HREF=\"${base_url}/${next_tstart}\">NEXT</A><br />\n";
+		my $ct_next_tstart = Chandra::Time->new($next_tstart)->fits();
+		$ct_next_tstart =~ /(\d{4})-(\d{2})-.*/;
+		my $next_year = $1;
+		$nav_links .= "<A HREF=\"${base_url}/${next_year}/${next_tstart}\">NEXT</A><br />\n";
 	    }
 	    
 	    # the eval substitutes in $nav_links, base_url, tstart, tstop, and @dest_plots
@@ -976,12 +987,12 @@ sub install_plots{
 	    
 	    $out_string .= sprintf( $index->end_html );
 	    
-	    my $index_file = io("${WEB_DIR}/${tstart}/$pass_dir_index");
+	    my $index_file = io("${WEB_DIR}/${year}/${tstart}/$pass_dir_index");
 	    unless( $opt{dryrun} ){
 		$index_file->print($out_string);
 	    }
 	    else{
-		print "Would have made: ${WEB_DIR}/${tstart}/$pass_dir_index \n";
+		print "Would have made: ${WEB_DIR}/${year}/${tstart}/$pass_dir_index \n";
 	    }
 	    
 	    
@@ -1058,6 +1069,7 @@ sub install_plots{
     for my $year (sort (keys %time_tree)){
 	$nav_table .= "<TH>$year</TH>";
 	my @month_list = sort keys %{$time_tree{$year}};
+
 	my @month_links = map { $month_map{$_} . ".html" } @month_list;
 #    make_nav_page( $year, \@month_links, $config{general}->{base_dir}, $WEB_DIR);
 	for my $month_idx (0 .. $#month_list){
@@ -1115,6 +1127,7 @@ sub install_plots{
 
 sub make_nav_page{
     my $arg_in = shift;
+
     my %config = %{$arg_in->{config}};
     my %opt = %{$arg_in->{opt}};
     my $WEB_DIR = $arg_in->{WEB_DIR};
@@ -1160,9 +1173,12 @@ sub make_nav_page{
 	my $pg_color_idx = ($pass_idx) % scalar(@colorlist);
         my $pg_color = $colorlist[$pg_color_idx];
 	my $color = $colormap{$pg_color};
+	my $ct_pass_tstart = Chandra::Time->new($entry)->fits();
+	$ct_pass_tstart =~ /(\d{4})-(\d{2})-.*/;
+	my $pass_year = $1;
 	$pass_table .= "<TR>";
 	$pass_table .= "<TD BGCOLOR=\"$color\" WIDTH=\"25\">&nbsp;</TD>\n";
-	$pass_table .= "<TD><A HREF=\"${base_dir}/${entry}/index.html#plot\">${entry}</A></TD>\n";
+	$pass_table .= "<TD><A HREF=\"${base_dir}/${pass_year}/${entry}/index.html#plot\">${entry}</A></TD>\n";
 	$pass_table .= "</TR>";
     }
     $pass_table .= "</TABLE>\n";
@@ -1205,7 +1221,7 @@ sub find_todo_dir{
     my %dir_status;
 
 # first get a list of directories.
-    my @telem_dirs = glob("${WORKING_DIR}/????:*");
+    my @telem_dirs = glob("${WORKING_DIR}/????/????:*");
 
 # step backward through them until I find one that has an $xml_out_file
     for my $dir ( reverse @telem_dirs ){
@@ -1243,7 +1259,7 @@ sub find_range_dir{
     my $tstart = $arg_in->{tstart};
     my $tstop = $arg_in->{tstop};
 # first get a list of directories.
-    my @telem_dirs = glob("${WORKING_DIR}/????:*");
+    my @telem_dirs = glob("${WORKING_DIR}/????/????:*");
 
     my @todo_directories;
 
@@ -1315,7 +1331,7 @@ sub all_files_present{
     else{
 	$present = 0;
     }
-    print "$dir $present \n";
+
 
     return $present;
 }
