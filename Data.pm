@@ -11,18 +11,11 @@ Ska::Perigee::Data - Work with perigee pass aca0 image telemetry
 
 Common Usage
 
- use Ska::Perigee::Data qw( retrieve_telem parse_telem make_plots );
-
- retrieve_telem();
- parse_telem();
- make_plots();
 
 =head1 DESCRIPTION
 
 =head1 EXPORT
 
-None by default.
-retrieve_telem, parse_telem, and make_plots are available by request.
 
 =head1 METHODS
 
@@ -581,13 +574,13 @@ and to override the pass data directory explicitly.
                             dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
                             help => undef,
                             dryrun => undef,
-                            redo => undef,
+                            rebuild => undef,
                             verbose => undef});
 
 The "dryrun" option, if set, causes the routine to print to screen a
 list of the plots it would have created if it had been run in truth.
 
-redo causes the routine to rebuild all month plots.
+rebuild causes the routine to rebuild all month plots.
 
 =cut
 
@@ -604,7 +597,7 @@ sub month_stats_and_plots{
 
 
     
-    my @allowed_options =  qw( help config shared_config 'redo' verbose dryrun );
+    my @allowed_options =  qw( help config shared_config rebuild verbose dryrun );
     check_options({ allowed => \@allowed_options,
                     opt => $opt_ref});
     
@@ -665,7 +658,7 @@ sub month_stats_and_plots{
     my $summary_dir = $config{general}->{summary_dir};
     
     my @month_list;
-    if ($opt{redo}){
+    if ($opt{rebuild}){
 	@month_list = sort(keys %time_tree);
     }
     else{
@@ -767,7 +760,7 @@ sub range_stats_and_plots{
 
 
 
-    my @allowed_options =  qw( help config shared_config 'redo' verbose dryrun tstop tstart);
+    my @allowed_options =  qw( help config shared_config rebuild verbose dryrun tstop tstart);
     check_options({ allowed => \@allowed_options,
                     opt => $opt_ref});
     
