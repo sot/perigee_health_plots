@@ -92,7 +92,7 @@ dac:
    x: time
    y: dac
    device: 'dac.ps/vcps'
-   symbol_size: .5
+   symbol_size: .25
    axis_num_size: 1.5
    axis_title_size: 1.5
 

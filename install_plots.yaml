@@ -123,7 +123,8 @@ month_text: >
    </TABLE>
    <BR />
    <P>In the plot of TEC DAC vs delta Temperature, the linear fit to
- the current data is a dotted line.  The dashed line is the fit line
+ the current data is a dotted line (fit not calculated if data range
+ is insufficient).  The dashed line is the fit line
  from a range of -15 to -19 data.
 
    <P>Plots for each perigee pass summarized above are available from the links below.
