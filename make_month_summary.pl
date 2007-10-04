@@ -13,7 +13,7 @@ GetOptions (\%opt,
             'shared_config=s',
             'config=s',
             'dir=s',
-            'missing!',
+	    'redo!',
             'verbose|v!',
             'delete!'
             );

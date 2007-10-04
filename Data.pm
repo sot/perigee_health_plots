@@ -438,7 +438,9 @@ sub parse_pass_telem{
 	}
     }
 
-    push @{$status{prev_done}}, @{$dir_status->{done}};
+    if (defined $dir_status->{done}){
+	push @{$status{prev_done}}, @{$dir_status->{done}};
+    }
 
     return \%status;
     
@@ -579,12 +581,13 @@ and to override the pass data directory explicitly.
                             dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
                             help => undef,
                             dryrun => undef,
-                            missing => undef,
+                            redo => undef,
                             verbose => undef});
 
 The "dryrun" option, if set, causes the routine to print to screen a
 list of the plots it would have created if it had been run in truth.
 
+redo causes the routine to rebuild all month plots.
 
 =cut
 
