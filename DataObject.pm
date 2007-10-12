@@ -1080,13 +1080,19 @@ sub make_plot_a_vs_b{
 		$coloridx = ($dir_num) % scalar(@colorlist);
 	    }
 	    my $color = $colorlist[$coloridx];
-	    push @data_plot_array , ('x' => [@xvalue] ,
-				     'y' => $y_pdl->($obsid_idx{$obsid}),
-				     color => { symbol => $color },
-				     charsize => {symbol => $symbol_size, title => $axis_title_size, axis => $axis_num_size },
-				     plot => 'points',
-				     );
+	    if ( scalar(@xvalue) == $y_pdl->($obsid_idx{$obsid})->nelem() ){ 
+		push @data_plot_array , ('x' => [@xvalue] ,
+					 'y' => $y_pdl->($obsid_idx{$obsid}),
+					 color => { symbol => $color },
+					 charsize => {symbol => $symbol_size, title => $axis_title_size, axis => $axis_num_size },
+					 plot => 'points',
+					 );
 	    
+	    }
+	    else{
+		print "$obsid has ", scalar(@xvalue), ":xval and", $y_pdl->($obsid_idx{$obsid})->nelem(), ":yval \n";
+	    }
+	      
 	}
 
 #	$obsid_count += scalar(@ordered_obsid);
@@ -1184,8 +1190,9 @@ sub plot{
 	    pgs_plot( @pgs_array );
 	};
 	if ($@){
+	    print "Could not plot data\n";
 	    print $@, "\n";
-	    print Dumper @pgs_array;
+#	    print Dumper @pgs_array;
 	}
     }
     else{
@@ -1219,6 +1226,16 @@ sub make_oplot{
 	    for my $i (0 .. $#poly){
 		$yvals += $poly[$i] * ( $xvals**$i );
 	    }
+     
+	    # Exclude any points outside our desired yrange
+	    my $ok_yval = which((  $yvals <= $y_range->{max}) & ( $yvals >= $y_range->{min} ));
+	    my $new_yval = $yvals->($ok_yval);
+	    $yvals = $new_yval;
+	    # reduce the xvals to the same list
+	    my $new_xval = $xvals->($ok_yval);
+	    $xvals = $new_xval;
+
+
 	    # Prediction
 	    push @plot_array, ('x' => [ $xvals->list ],
 			       'y' => [ $yvals->list ],
@@ -1247,6 +1264,15 @@ sub make_oplot{
 		    for my $i (0 .. $#poly){
 			$yvals += $poly[$i] * ($xvals**$i);
 		    }
+
+		    # Exclude any points outside our desired yrange
+		    my $ok_yval = which((  $yvals <= $y_range->{max}) & ( $yvals >= $y_range->{min} ));
+		    my $new_yval = $yvals->($ok_yval);
+		    $yvals = $new_yval;
+		    # reduce the xvals to the same list
+		    my $new_xval = $xvals->($ok_yval);
+		    $xvals = $new_xval;
+		    
 #		# Prediction
 		    push @plot_array, ('x' => [ $xvals->list ],
 				       'y' => [ $yvals->list ],
