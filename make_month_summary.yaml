@@ -6,7 +6,7 @@
 base_url: http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots/
 
 loadconfig:
- - /proj/gads6/jeanproj/perigee_health_plots/plot_summary.yaml
+ - /proj/sot/ska/share/perigee_health_plots/plot_summary.yaml
 
 # source plot ext
 source_plot_ext: ps

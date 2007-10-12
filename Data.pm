@@ -104,7 +104,7 @@ and to override the output directory explicitly.
 
  retrieve_telem( { shared_config => "${SKA}/share/${TASK}/shared.yaml",
                    config => "${SKA}/share/${TASK}/get_perigee_telem.yaml",
-                   dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
+                   dir => "/proj/sot/ska/data/perigee_health_plots/PASS_DATA/",
                    help => undef,
                    verbose => undef });
 
@@ -304,7 +304,7 @@ and to override the pass data directory explicitly.
 
  parse_telem( { shared_config => "${SKA}/share/${TASK}/shared.yaml",
                 config => "${SKA}/share/${TASK}/perigee_telem_parse.yaml",
-                dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
+                dir => "/proj/sot/ska/data/perigee_health_plots/PASS_DATA/",
                 help => undef,
                 missing => undef,
                 verbose => undef });
@@ -459,7 +459,7 @@ and to override the pass data directory explicitly.
 
     pass_stats_and_plots( { shared_config => "${SKA}/share/${TASK}/shared.yaml",
                             config => "${SKA}/share/${TASK}/plot_health.yaml",
-                            dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
+                            dir => "/proj/sot/ska/data/perigee_health_plots/PASS_DATA/",
                             help => undef,
                             dryrun => undef,
                             missing => undef,
@@ -571,7 +571,7 @@ and to override the pass data directory explicitly.
 
     month_stats_and_plots( { shared_config => "${SKA}/share/${TASK}/shared.yaml",
                             config => "${SKA}/share/${TASK}/make_month_summary.yaml",
-                            dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
+                            dir => "/proj/sot/ska/data/perigee_health_plots/PASS_DATA/",
                             help => undef,
                             dryrun => undef,
                             rebuild => undef,
@@ -733,7 +733,7 @@ and to override the pass data directory explicitly.
 
     range_stats_and_plots( { shared_config => "${SKA}/share/${TASK}/shared.yaml",
                             config => "${SKA}/share/${TASK}/make_month_summary.yaml",
-                            dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
+                            dir => "/proj/sot/ska/data/perigee_health_plots/PASS_DATA/",
                             help => undef,
                             dryrun => undef,
                             missing => undef,
@@ -833,7 +833,7 @@ and to override the pass data directory explicitly.
 
     range_stats_and_plots( { shared_config => "${SKA}/share/${TASK}/shared.yaml",
                             config => "${SKA}/share/${TASK}/make_month_summary.yaml",
-                            dir => "/proj/gads6/aca/perigee_health_plots/PASS_DATA/",
+                            dir => "/proj/sot/ska/data/perigee_health_plots/PASS_DATA/",
                             help => undef,
                             dryrun => undef,
                             missing => undef,

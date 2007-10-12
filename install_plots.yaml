@@ -28,7 +28,7 @@ source_plot_ext: ps
 passnum: 15
 
 loadconfig:
- - /proj/gads6/jeanproj/perigee_health_plots/plot_summary.yaml
+ - /proj/sot/ska/share/perigee_health_plots/plot_summary.yaml
 
 stylesheet: /mta/ASPECT/aspect.css
 
