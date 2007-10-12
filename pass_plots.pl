@@ -49,14 +49,18 @@ use Ska::Perigee::Data;
 
 use Data::Dumper;
 
-my $retrieve_status = Ska::Perigee::Data::retrieve_telem(\%opt);
+my ($retrieve_status, $parse_status, $pass_status, $summary_status, $install_status);
 
-my $parse_status = Ska::Perigee::Data::parse_pass_telem(\%opt);
+$retrieve_status = Ska::Perigee::Data::retrieve_telem(\%opt);
 
-my $pass_status = Ska::Perigee::Data::pass_stats_and_plots(\%opt);
+if ( $retrieve_status->{updated} != 0 ){
 
-my $summary_status = Ska::Perigee::Data::month_stats_and_plots(\%opt);
+    $parse_status = Ska::Perigee::Data::parse_pass_telem(\%opt);
 
-my $install_status = Ska::Perigee::Data::install_plots(\%opt);
+    $pass_status = Ska::Perigee::Data::pass_stats_and_plots(\%opt);
 
+    $summary_status = Ska::Perigee::Data::month_stats_and_plots(\%opt);
+
+    $install_status = Ska::Perigee::Data::install_plots(\%opt);
+}
 
