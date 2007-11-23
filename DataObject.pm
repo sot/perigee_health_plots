@@ -609,11 +609,11 @@ sub plot_health{
 						polyfit => $self->fit_result(),
 					    });
 	    
-#	    $plot_helper->plot( 'aca_temp' );
+	    $plot_helper->plot( 'aca_temp' );
            
-#	    $plot_helper->plot( 'ccd_temp' );
+	    $plot_helper->plot( 'ccd_temp' );
 	    
-#	    $plot_helper->plot( 'dac' );
+	    $plot_helper->plot( 'dac' );
 	    
 	    $plot_helper->plot( 'dac_vs_dtemp' );
 
