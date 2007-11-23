@@ -202,8 +202,8 @@ sub retrieve_telem{
     
 	my $tstop = date2time($pass{tstop});
 	
-	# skip retrieve if directory already exists
-	if ( -e "${WORKING_DIR}/${year}/$pass{tstart}/$pass_time_file"){
+	# skip retrieve if directory already parsed
+	if ( -e "${WORKING_DIR}/${year}/$pass{tstart}/data.yaml"){
 	    if ($opt{verbose}){
 		print "Skipping $pass{tstart}; already exists \n";
 	    }
@@ -238,7 +238,7 @@ sub retrieve_telem{
 							 file_glob => "*.fits*",
 							 dir       => $WORKING_DIR . "/${year}/$pass{tstart}/",
 							 loud      => 0,
-							 timeout => 1000,
+							 timeout => 5000,
 							 );
 	    
 	    @obsfiles2 = Ska::Process::get_archive_files(guestuser => 1,
@@ -253,7 +253,11 @@ sub retrieve_telem{
 	    
 	};
 	if ($@){
-	    croak("$@");
+#	    rmtree("${WORKING_DIR}/${year}/$pass{tstart}");
+	    print "Error getting telemetry for ", $pass{tstart}, "\n";
+	    print "Error: $@ \n";
+#	    print "Moving on to next pass \n";
+#	    croak("$@");
 	}
 	
 	

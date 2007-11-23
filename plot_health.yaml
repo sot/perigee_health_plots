@@ -149,6 +149,7 @@ dac_vs_dtemp:
      - ~
      - ~
    min_y_size: 10
+   min_x_size: .1
    xtitle: 'ACA temp - CCD temp (C)'
    ytitle: 'TEC DAC Control Level'
    randomize_unit: 1

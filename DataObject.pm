@@ -599,6 +599,8 @@ sub plot_health{
 	for my $dir (@data_array){
 	    
 	    my %colranges = find_pdl_ranges( [$dir]);
+
+#	    print Dumper %colranges;
 	    
 	    my $plot_helper = PlotHelper->new({ config => $config,
 						opt => $opt,
@@ -607,17 +609,16 @@ sub plot_health{
 						polyfit => $self->fit_result(),
 					    });
 	    
-	    $plot_helper->plot( 'aca_temp' );
+#	    $plot_helper->plot( 'aca_temp' );
            
-	    $plot_helper->plot( 'ccd_temp' );
+#	    $plot_helper->plot( 'ccd_temp' );
 	    
-	    $plot_helper->plot( 'dac' );
+#	    $plot_helper->plot( 'dac' );
 	    
 	    $plot_helper->plot( 'dac_vs_dtemp' );
 
 	    $plot_helper->legend();
 	    
-#	    $plot_helper->report();
 
 	}
 	
@@ -647,9 +648,7 @@ sub plot_health{
 	
 	$plot_helper->plot( 'dac_vs_dtemp' );
 	
-#	$plot_helper->plot( 'dacfit' );
 
-#	$plot_helper->plot( 'dtempfit' );
 
     }	
     
@@ -744,7 +743,6 @@ sub save_stats{
 	}
     }
 }
-
 
 sub report{
 
@@ -850,6 +848,7 @@ sub report{
 
 
 }
+
 
 
 1;    
@@ -1148,8 +1147,11 @@ sub plot{
 
     
     my @lims = tweak_limits( $curr_config, $colrange);
+#    print Dumper @lims;
 
     push @pgs_array, ( lims => \@lims );
+#    use Data::Dumper;
+#    print Dumper @lims;
 
     my $x_type = $curr_config->{x};
     my $y_type = $curr_config->{y};
@@ -1173,12 +1175,15 @@ sub plot{
 					    color_array => $self->config()->{task}->{allowed_colors} 					
 					});
 	
+
 	if (defined $curr_config->{oplot}){
 	    push @pgs_array, $self->make_oplot({ 
 		y_range => $colrange->{$y_type},
 		x_range => $colrange->{$x_type},
 		oplot => $curr_config->{oplot},
 		data => $data_ref,
+		plot => $plot,
+		lims => \@lims,
 		config => $self->config(),
 	    });
 	}
@@ -1210,7 +1215,11 @@ sub make_oplot{
     my $y_range = $arg_in->{y_range};
     my $x_range = $arg_in->{x_range};
     my $config = $arg_in->{config};
-    
+    my $plot_name = $arg_in->{plot};
+
+    my $lims = $arg_in->{lims};
+    my $curr_config = $config->{$plot_name};
+
     my @plot_array;
 
 #    use Math::Polynomial;
@@ -1220,21 +1229,28 @@ sub make_oplot{
 	if ($element->{type} eq 'poly'){
 	    my @poly = @{$element->{poly}};
 	    my $npoints = $element->{npoints};
-	    my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
-#	    my $yvals = $poly[0] + $xvals*$poly[1] + ($xvals*$xvals)*$poly[2];
+	    my $xvals;
+
+	    $xvals = sequence($npoints+1)*(($lims->[1] - $lims->[0])/($npoints))+(($lims->[0]));
+
 	    my $yvals = 0;
 	    for my $i (0 .. $#poly){
 		$yvals += $poly[$i] * ( $xvals**$i );
 	    }
-     
-	    # Exclude any points outside our desired yrange
-	    my $ok_yval = which((  $yvals <= $y_range->{max}) & ( $yvals >= $y_range->{min} ));
-	    my $new_yval = $yvals->($ok_yval);
-	    $yvals = $new_yval;
-	    # reduce the xvals to the same list
-	    my $new_xval = $xvals->($ok_yval);
-	    $xvals = $new_xval;
 
+	    # Exclude any points outside our desired yrange;
+	    # one method for regular plots, one method for those that need to be padded due to min_x or min_y
+
+	    if (defined $curr_config->{min_y_size}){
+		if (($y_range->{max} - $y_range->{min}) > $curr_config->{min_y_size}){
+		    my $ok_yval = which((  $yvals <= $y_range->{max}) & ( $yvals >= $y_range->{min} ));
+		    my $new_yval = $yvals->($ok_yval);
+		    $yvals = $new_yval;
+		    # reduce the xvals to the same list
+		    my $new_xval = $xvals->($ok_yval);
+		    $xvals = $new_xval;
+		}
+	    }
 
 	    # Prediction
 	    push @plot_array, ('x' => [ $xvals->list ],
@@ -1243,7 +1259,7 @@ sub make_oplot{
 			       options => $element->{options},
 			       plot => $element->{plot_type},
 			       );
-	    
+
 	}
 
 	if ($element->{type} eq 'polyfit'){
@@ -1401,6 +1417,10 @@ my $aspect = .5;
 	print "would have made $dev\n";
     }
 }#
+
+
+
+
 1;
 
 
