@@ -1177,6 +1177,10 @@ sub plot{
 	
 
 	if (defined $curr_config->{oplot}){
+#	    print "colrange:\n";
+#B	    print Dumper $colrange;
+#	    print "lims:\n";
+#	    print Dumper @lims;
 	    push @pgs_array, $self->make_oplot({ 
 		y_range => $colrange->{$y_type},
 		x_range => $colrange->{$x_type},
@@ -1218,6 +1222,15 @@ sub make_oplot{
     my $plot_name = $arg_in->{plot};
 
     my $lims = $arg_in->{lims};
+
+    my $max_x = (defined $lims->[1]) ? $lims->[1] : $x_range->{max};
+    my $min_x = (defined $lims->[0]) ? $lims->[0] : $x_range->{min};
+    my $max_y = (defined $lims->[3]) ? $lims->[3] : $y_range->{max};
+    my $min_y = (defined $lims->[2]) ? $lims->[2] : $y_range->{max};
+
+#    print "min_x = $min_x; max_x = $max_x \n";
+#    print "min_y = $min_y; max_y = $max_y \n";
+
     my $curr_config = $config->{$plot_name};
 
     my @plot_array;
@@ -1229,27 +1242,33 @@ sub make_oplot{
 	if ($element->{type} eq 'poly'){
 	    my @poly = @{$element->{poly}};
 	    my $npoints = $element->{npoints};
-	    my $xvals;
 
-	    $xvals = sequence($npoints+1)*(($lims->[1] - $lims->[0])/($npoints))+(($lims->[0]));
+	    my $xvals = sequence($npoints+1)*(($max_x - $min_x)/($npoints))+($min_x);
 
+#	    print $xvals, "\n";
 	    my $yvals = 0;
 	    for my $i (0 .. $#poly){
 		$yvals += $poly[$i] * ( $xvals**$i );
 	    }
 
+#	    print $yvals, "\n";
 	    # Exclude any points outside our desired yrange;
 	    # one method for regular plots, one method for those that need to be padded due to min_x or min_y
-
+	    
+	    my $trim_ends = 1;
 	    if (defined $curr_config->{min_y_size}){
-		if (($y_range->{max} - $y_range->{min}) > $curr_config->{min_y_size}){
-		    my $ok_yval = which((  $yvals <= $y_range->{max}) & ( $yvals >= $y_range->{min} ));
-		    my $new_yval = $yvals->($ok_yval);
-		    $yvals = $new_yval;
-		    # reduce the xvals to the same list
-		    my $new_xval = $xvals->($ok_yval);
-		    $xvals = $new_xval;
+		if (($y_range->{max} - $y_range->{min}) < $curr_config->{min_y_size}){
+		    $trim_ends = 0;
 		}
+	    }
+#	    print "trim ends: 0 \n";
+	    if ($trim_ends){
+		my $ok_yval = which((  $yvals <= $max_y) & ( $yvals >= $min_y ));
+		my $new_yval = $yvals->($ok_yval);
+		$yvals = $new_yval;
+		# reduce the xvals to the same list
+		my $new_xval = $xvals->($ok_yval);
+		$xvals = $new_xval;
 	    }
 
 	    # Prediction
@@ -1275,19 +1294,32 @@ sub make_oplot{
 		if (scalar(@poly)){
 		    
 		    my $npoints = $element->{npoints};
-		    my $xvals = sequence($npoints+1)*(($x_range->{max} - $x_range->{min})/($npoints))+(($x_range->{min}));
+
+		    my $xvals = sequence($npoints+1)*(($max_x - $min_x)/($npoints))+($min_x);
+
+#		    print $xvals, "\n";
 		    my $yvals = 0;
 		    for my $i (0 .. $#poly){
 			$yvals += $poly[$i] * ($xvals**$i);
 		    }
+#		    print $yvals, "\n";
 
-		    # Exclude any points outside our desired yrange
-		    my $ok_yval = which((  $yvals <= $y_range->{max}) & ( $yvals >= $y_range->{min} ));
-		    my $new_yval = $yvals->($ok_yval);
-		    $yvals = $new_yval;
-		    # reduce the xvals to the same list
-		    my $new_xval = $xvals->($ok_yval);
-		    $xvals = $new_xval;
+		    my $trim_ends = 1;
+		    if (defined $curr_config->{min_y_size}){
+			if (($y_range->{max} - $y_range->{min}) < $curr_config->{min_y_size}){
+			    $trim_ends = 0;
+			}
+		    }
+#		    print "trim ends: $trim_ends \n";
+		    if ($trim_ends){
+			my $ok_yval = which((  $yvals <= $max_y) & ( $yvals >= $min_y ));
+			my $new_yval = $yvals->($ok_yval);
+			$yvals = $new_yval;
+			# reduce the xvals to the same list
+			my $new_xval = $xvals->($ok_yval);
+			$xvals = $new_xval;
+		    }
+
 		    
 #		# Prediction
 		    push @plot_array, ('x' => [ $xvals->list ],
@@ -1302,7 +1334,8 @@ sub make_oplot{
 
 	}
     }
-    
+
+#    print Dumper @plot_array;
     return  @plot_array;
 }
 

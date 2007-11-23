@@ -163,7 +163,7 @@ dac_vs_dtemp:
          - 114.474
          - 0.403096
          - 0.236348
-       npoints: 100
+       npoints: 20
        plot_type: line
        color:
           line: black
@@ -171,7 +171,7 @@ dac_vs_dtemp:
           linestyle: dashed
      - type: polyfit
        polyname: dac_vs_dtemp_fit
-       npoints: 100
+       npoints: 20	
        plot_type: line
        color:
           line: black
