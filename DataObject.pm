@@ -614,7 +614,7 @@ sub plot_health{
 	    $plot_helper->plot( 'ccd_temp' );
 	    
 	    $plot_helper->plot( 'dac' );
-	    
+           
 	    $plot_helper->plot( 'dac_vs_dtemp' );
 
 	    $plot_helper->legend();
@@ -936,6 +936,7 @@ sub make_plot_summary{
 	}
     }
 
+    print "$starttime \n";
 
     for my $dir_num ( 0 ... scalar(@{$data_ref})-1 ){
 	
@@ -950,6 +951,7 @@ sub make_plot_summary{
 	    $xmin = ($xmin - $starttime)/86400; # find time difference and convert to days
 	    $xmax = ($xmax - $starttime)/86400; 
 	}
+
 
 	my $xmid = ($xmin+$xmax)/2;
 
@@ -1010,7 +1012,9 @@ sub make_plot_summary{
 				     plot => 'line',
 				     );
 	    
-	    
+
+#	    use Data::Dumper;
+#	    print Dumper @data_plot_array;
 	    
 	}
 	
@@ -1145,13 +1149,6 @@ sub plot{
 		       ytitle => $curr_config->{ytitle},
 		       );
 
-    
-    my @lims = tweak_limits( $curr_config, $colrange);
-#    print Dumper @lims;
-
-    push @pgs_array, ( lims => \@lims );
-#    use Data::Dumper;
-#    print Dumper @lims;
 
     my $x_type = $curr_config->{x};
     my $y_type = $curr_config->{y};
@@ -1168,6 +1165,13 @@ sub plot{
 
     }
     else{
+
+    
+	my @lims = tweak_limits( $curr_config, $colrange);
+#    print Dumper @lims;
+	
+	push @pgs_array, ( lims => \@lims );
+
 	
 	push @pgs_array, make_plot_a_vs_b({ 
 	                                    plot_config => $curr_config,
@@ -1196,6 +1200,8 @@ sub plot{
 
     unless ($opt->{dryrun}){
 	eval{
+#	    use Data::Dumper;
+#	    print Dumper @pgs_array;
 	    pgs_plot( @pgs_array );
 	};
 	if ($@){
@@ -1384,6 +1390,20 @@ sub tweak_limits{
 	    }
 	}
 	
+	if (not defined $lims[0]){
+	    $lims[0] = $colrange->{$x_type}->{min};
+	}
+	if (not defined $lims[1]){
+	    $lims[1] = $colrange->{$x_type}->{max};
+	}
+	if (not defined $lims[2]){
+	    $lims[2] = $colrange->{$y_type}->{min};
+	}
+	if (not defined $lims[3]){
+	    $lims[3] = $colrange->{$y_type}->{max};
+	}
+       		  
+
 	return @lims;
     }
 
