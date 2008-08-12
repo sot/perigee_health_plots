@@ -239,6 +239,7 @@ sub retrieve_telem{
 							 dir       => $WORKING_DIR . "/${year}/$pass{tstart}/",
 							 loud      => 0,
 							 timeout => 5000,
+							 version => [ 5, 4, 3, 2, 1 ],
 							 );
 	    
 	    @obsfiles2 = Ska::Process::get_archive_files(guestuser => 1,
@@ -249,6 +250,7 @@ sub retrieve_telem{
 							 dir       => $WORKING_DIR . "/${year}/$pass{tstart}/",
 							 loud      => 0,
 							 timeout => 1000,
+							 version => [5, 4, 3, 2, 1],
 							 );
 	    
 	};
