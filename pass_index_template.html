@@ -1,0 +1,39 @@
+<!DOCTYPE html
+	PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+<title>ACA Health Plots</title>
+<link rel="stylesheet" type="text/css" href="/mta/ASPECT/aspect.css" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+</head>
+<body>
+<A HREF="{{task.url}}">UP TO MAIN</A><br />
+<TABLE><TR><TD><H3>ACA Health Plots</H3></TD>
+<TD><!--#include virtual="telem_time.htm" --></TD></TR></TABLE>
+
+<BR />
+<TABLE> 
+<TR>
+<TD><IMG SRC="dac.png"></TD>
+<TD><IMG SRC="dacvsdtemp.png"></TD>
+</TR> 
+<TR>
+<TD><IMG SRC="aca_temp.png"></TD>
+<TD><IMG SRC="ccd_temp.png"></TD>
+</TR>
+</TABLE>
+<BR /> 
+
+<!--#include virtual="obslist.htm" -->
+
+<P>Plots of ACA housing temperature, CCD temperature, and DAC
+control level. Data is only available during perigee passes or other 8x8 ERs.
+Datestart and datestop correspond to the time range when 8x8 
+ACA telemetry is available for all required slots.
+
+
+
+
+</body>
+</html>
