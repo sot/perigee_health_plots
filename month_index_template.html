@@ -1,0 +1,38 @@
+<!DOCTYPE html
+	PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN"
+	 "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en-US" xml:lang="en-US">
+<head>
+<title>ACA health Summary Plots</title>
+<link rel="stylesheet" type="text/css" href="/mta/ASPECT/aspect.css" />
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+</head>
+<body>
+<A HREF="{{task.url}}">UP TO MAIN</A><br />
+<H3>{{month.name}}, ACA Health Summary Plots</H3> 
+
+<BR />
+<TABLE> 
+<TR>
+<TD><IMG SRC="dac.png"></TD>
+<TD><IMG SRC="dacvsdtemp.png"></TD>
+</TR> 
+<TR>
+<TD><IMG SRC="aca_temp.png"></TD>
+<TD><IMG SRC="ccd_temp.png"></TD>
+</TR>
+</TABLE>
+<BR /> 
+
+<P>Summary plots of ACA housing temperature, CCD temperature, and DAC
+control level. Data is only available during perigee passes, so each
+point on these summary plots represents the mean of the aforementioned
+indicators during a perigee pass. Plots for single passes are
+available from the links below.
+
+<P>Plots for each perigee pass summarized above are available from the links below. 
+
+<!--#include virtual="passlist.htm" -->
+
+</body>
+</html>
