@@ -4,7 +4,7 @@ VERSION = 2.0
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
-SHARE = get_perigee_telem.pl pass_plots.py month_index_template.html pass_index_template.html top_index_template.html
+SHARE = get_perigee_telem.pl pass_plots.py month_index_template.html pass_index_template.html top_index_template.html characteristics.py
 
 
 install: 
