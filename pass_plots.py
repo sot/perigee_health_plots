@@ -41,8 +41,7 @@ colors = characteristics.plot_colors
 pass_color_maker = cycle(colors)
 obsid_color_maker = cycle(colors)
 
-TASK_DATA = os.path.join(os.environ['SKA'], 'data', 'perigee_data')
-#TASK_DATA = '/proj/gads6/jeanproj/perigee_health_plots_dev'
+TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_data')
 TASK_DIR = '/proj/sot/ska/www/ASPECT/perigee_health_plots'
 URL = 'http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots'
 PASS_DATA = os.path.join(TASK_DIR, 'PASS_DATA')
@@ -405,7 +404,7 @@ def plot_pass( telem, pass_dir, redo=False ):
 
     django_context = django.template.Context({ 'task' : { 'url' : URL }})
     index = os.path.join(pass_dir, 'index.html')
-    pass_index_template_file = os.path.join(TASK_DATA, 'pass_index_template.html')
+    pass_index_template_file = os.path.join(TASK_SHARE, 'pass_index_template.html')
     pass_index_template = open(pass_index_template_file).read()
     pass_index_template = re.sub(r' %}\n', ' %}', pass_index_template)
     pass_template = django.template.Template(pass_index_template)
@@ -641,8 +640,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                                                        'month' : { 'name' : month }})
             index = os.path.join(monthdir, 'index.html')
             log.info("making %s" % index)
-        #    index_template_file = os.path.join(TASK_DATA, 'month_index_template.html')
-            index_template_file = os.path.join(TASK_DATA, 'month_index_template.html')
+            index_template_file = os.path.join(TASK_SHARE, 'month_index_template.html')
             index_template = open(index_template_file).read()
             index_template = re.sub(r' %}\n', ' %}', index_template)
             template = django.template.Template(index_template)
@@ -655,7 +653,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
     toptable.write("</TABLE>\n")
     toptable.close()
 
-    topindex_template_file = os.path.join(TASK_DATA, 'top_index_template.html')
+    topindex_template_file = os.path.join(TASK_SHARE, 'top_index_template.html')
     topindex_template = open(topindex_template_file).read()
     topindex = open(os.path.join(TASK_DIR, 'index.html'), 'w')
     topindex.writelines(topindex_template)
