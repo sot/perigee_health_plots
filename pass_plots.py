@@ -22,6 +22,7 @@ if __name__ == '__main__':
 import matplotlib.pyplot as plt
 from Ska.Matplotlib import cxctime2plotdate
 
+import characteristics
 
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
@@ -30,20 +31,18 @@ log.setLevel(logging.DEBUG)
 smtp_handler = logging.handlers.SMTPHandler('localhost',
                                            'jeanconn@head.cfa.harvard.edu',
                                            'jeanconn@head.cfa.harvard.edu',
-                                           'load segment update')
+                                           'perigee health mon')
 smtp_handler.setLevel(logging.WARN)
 log.addHandler(smtp_handler) 
 
 
 
-colors = ['#ff0000', '#00ff00', '#0000ff',
-          '#ff00ff', '#00ffff', '#ff6600',
-          '#6600ff' ]
+colors = characteristics.plot_colors
 pass_color_maker = cycle(colors)
 obsid_color_maker = cycle(colors)
 
-#TASK_DATA = os.path.join(os.environ['SKA'], 'data', 'perigee_data')
-TASK_DATA = '/proj/gads6/jeanproj/perigee_health_plots_dev'
+TASK_DATA = os.path.join(os.environ['SKA'], 'data', 'perigee_data')
+#TASK_DATA = '/proj/gads6/jeanproj/perigee_health_plots_dev'
 TASK_DIR = '/proj/sot/ska/www/ASPECT/perigee_health_plots'
 URL = 'http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots'
 PASS_DATA = os.path.join(TASK_DIR, 'PASS_DATA')
@@ -58,6 +57,9 @@ if not django.conf.settings._target:
     except RuntimeError, msg:
         print msg
         
+
+
+
 
 
 def get_options():
@@ -206,8 +208,9 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
         except NameError:
             ccdm = ccdm_table
 
+    slots = (0,1,2,6,7)
     aca0 = {}
-    for slot in (0,1,2,6,7):
+    for slot in slots:
         aca_files = sorted(glob.glob(os.path.join( pass_dir, "aca*_%s_*" % slot )))
         for aca_file in aca_files:
             aca_table = Ska.Table.read_fits_table(aca_file)
@@ -219,6 +222,10 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
 
     mintime = pass_times[0].obsid_datestart
     maxtime = pass_times[0].obsid_datestop
+
+    for slot in slots:
+        if slot not in aca0.keys():
+            raise ValueError("missing 8x8 data for slot %d" % slot) 
 
     # determine the time range contained by all the slots
     for slot in aca0.keys():
@@ -275,6 +282,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
                     products['obsids'] = np.ones(min_samples) * obsids[0]
                 else:
                     products['obsids'] = obsids[0:min_samples-1]
+
 
             products['dac'] = aca0[7]['HD3TLM76'][ok[7]] * 256. + aca0[7]['HD3TLM77'][ok[7]]
             products['time'] = aca0[7]['TIME'][ok[7]]
@@ -366,30 +374,31 @@ def plot_pass( telem, pass_dir, redo=False ):
     obslist.close()
 
     h = plt.figure(tfig['dacvsdtemp'].number)
-    plt.ylim(460,515)
+    plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
     plt.ylabel('TEC DAC Control Level')
-    plt.xlim(37,40)
+    plt.xlim(characteristics.dacvsdtemp_plot['xlim'])
     plt.xlabel("ACA temp - CCD temp (C)\n\n")
-    h.subplots_adjust(bottom=0.2)
+    h.subplots_adjust(bottom=0.2,left=.2)
     plt.savefig(os.path.join(pass_dir, 'dacvsdtemp.png'))
     plt.close(h)
 
     h = plt.figure(tfig['dac'].number)
-    plt.ylim(460,515)
+    plt.ylim(characteristics.dac_plot['ylim'])
     plt.ylabel('TEC DAC Control Level')
+    h.subplots_adjust(left=.2)
     plt.savefig(os.path.join(pass_dir, 'dac.png'))
     plt.close(h)
 
     h = plt.figure(tfig['aca_temp'].number)
     plt.ylabel('ACA temp (C)')
-    plt.ylim(17,22)
+    plt.ylim(characteristics.aca_temp_plot['ylim'])
     h.subplots_adjust(left=0.2)
     plt.savefig(os.path.join(pass_dir, 'aca_temp.png'))
     plt.close(h)
 
     h = plt.figure(tfig['ccd_temp'].number)
     h.subplots_adjust(left=0.2)
-    plt.ylim(-20,-18)
+    plt.ylim(characteristics.ccd_temp_plot['ylim'])
     plt.ylabel('CCD temp (C)')
     plt.savefig(os.path.join(pass_dir, 'ccd_temp.png'))
     plt.close(h)
@@ -409,6 +418,9 @@ def plot_pass( telem, pass_dir, redo=False ):
 
 
 def per_pass_tasks( pass_dir ):
+
+    web_dir = re.sub( TASK_DIR, URL, pass_dir )
+
     tfile = 'telem.pickle'
     if not os.path.exists(os.path.join(pass_dir, tfile)):
         reduced_data = perigee_parse( pass_dir )
@@ -434,19 +446,15 @@ def per_pass_tasks( pass_dir ):
         tf.write("</TABLE>\n")
         tf.close()
     
-    # figure out more filters later...
-    filters = { 'dac' : { 'max' : 550 },
-                'ccd_temp' : { 'min' : -35,
-                               'max' : -5 },
-                'aca_temp' : { 'max' : 50 },
-                }
 
+    # cut out nonsense bad data
+    filters = characteristics.telem_chomp_limits
     for type in filters.keys():
         if filters[type].has_key('max'):
             goods = np.flatnonzero(reduced_data[type] <= filters[type]['max'])
             maxbads = np.flatnonzero(reduced_data[type] > filters[type]['max'])
             for bad in maxbads:
-                logging.info("filtering %s,%s,%6.2f" % (  
+                log.info("filtering %s,%s,%6.2f" % (  
                                                DateTime(reduced_data['time'][bad]).date,
                                                type,
                                                reduced_data[type][bad] ))
@@ -457,12 +465,31 @@ def per_pass_tasks( pass_dir ):
             goods = np.flatnonzero(reduced_data[type] >= filters[type]['min'])
             minbads = np.flatnonzero(reduced_data[type] < filters[type]['min'])
             for bad in minbads:
-                logging.info("filtering %s,%s,%6.2f" % ( 
+                log.info("filtering %s,%s,%6.2f" % ( 
                                                DateTime(reduced_data['time'][bad]).date,
                                                type,
                                                reduced_data[type][bad] ))
             for ttype in ('time', 'aca_temp', 'ccd_temp', 'dac'):
                 reduced_data[ttype] = reduced_data[ttype][goods]
+
+
+    # limit checks
+    limits = characteristics.telem_limits
+    for type in limits.keys():
+        if limits[type].has_key('max'):
+            if (max(reduced_data[type]) > limits[type]['max']):
+                log.warn("Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s" % (  
+                        type,
+                        max(reduced_data[type]),
+                        limits[type]['max'],
+                        web_dir))
+        if limits[type].has_key('min'):
+            if (min(reduced_data[type]) < limits[type]['min']):
+                log.warn("Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s" % (  
+                        type,
+                        min(reduced_data[type]),
+                        limits[type]['min'],
+                        web_dir))
 
 
     return reduced_data
@@ -542,6 +569,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                 passdate = match_date.group(1)
                 passdates.append(passdate)
                 mxpassdate = DateTime(passdate).mxDateTime
+                
                 try:
                     telem = per_pass_tasks(pass_dir)
                     curr_color = pass_color_maker.next()
@@ -577,11 +605,11 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
             passlist.close()
 
             h = plt.figure(tfig['dacvsdtemp'].number)
-            plt.ylim(460,515)
-            plt.xlim(37,40)
+            plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
+            plt.xlim(characteristics.dacvsdtemp_plot['xlim'])
             plt.ylabel('TEC DAC Control Level')
             plt.xlabel('ACA temp - CCD temp (C)')
-            h.subplots_adjust(bottom=0.2)
+            h.subplots_adjust(bottom=0.2,left=0.2)
             plt.savefig(os.path.join(monthdir, 'dacvsdtemp.png'))
             plt.close(h)
 
@@ -589,22 +617,23 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
             h = plt.figure(tfig['aca_temp'].number)
             plt.ylabel('ACA temp (C)')
             h.subplots_adjust(left=0.2)
-            plt.ylim(17,22)
+            plt.ylim(characteristics.aca_temp_plot['ylim'])
             plt.savefig(os.path.join(monthdir, 'aca_temp.png'))
             plt.close(h)
 
             h = plt.figure(tfig['ccd_temp'].number)
             plt.ylabel('CCD temp (C)')
-            plt.ylim(-20,-18)
+            plt.ylim(characteristics.ccd_temp_plot['ylim'])
             h.subplots_adjust(left=0.2)
             plt.savefig(os.path.join(monthdir, 'ccd_temp.png'))
             plt.close(h)
 
             h = plt.figure(tfig['dac'].number)
-            plt.ylim(460,515)
+            plt.ylim(characteristics.dac_plot['ylim'])
         #    xlim(cxctime2plotdate([DateTime(passdates[0]).secs - 86400,
         #                           DateTime(passdates[-1]).secs + 86400]))
             plt.ylabel('TEC DAC Control Level')
+            h.subplots_adjust(left=0.2)
             plt.savefig(os.path.join(monthdir, 'dac.png'))
             plt.close(h)
 
@@ -648,8 +677,11 @@ def main():
     dirs = retrieve_perigee_telem(start=last_month_start)
     dirs.sort()
     for dir in dirs:
-        per_pass_tasks( dir )
-    month_stats_and_plots()
+        try:
+            per_pass_tasks( dir )
+        except ValueError:
+            print "skipping %s" % dir
+    month_stats_and_plots(redo=True)
 
 
 if __name__ == '__main__':
