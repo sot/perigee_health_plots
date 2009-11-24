@@ -681,7 +681,7 @@ def main():
             per_pass_tasks( dir )
         except ValueError:
             print "skipping %s" % dir
-    month_stats_and_plots(redo=True)
+    month_stats_and_plots()
 
 
 if __name__ == '__main__':
