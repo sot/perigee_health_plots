@@ -41,7 +41,7 @@ colors = characteristics.plot_colors
 pass_color_maker = cycle(colors)
 obsid_color_maker = cycle(colors)
 
-TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_data')
+TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_health_plots')
 TASK_DIR = '/proj/sot/ska/www/ASPECT/perigee_health_plots'
 URL = 'http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots'
 PASS_DATA = os.path.join(TASK_DIR, 'PASS_DATA')
@@ -161,10 +161,10 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
             os.mkdir(pass_dir)
         made_timefile = os.path.exists(os.path.join(pass_dir, pass_time_file))
         if redo is True or not made_timefile:
-            log.info("get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
-                     % (er_start, er_stop, pass_dir))
-            Ska.Shell.bash_shell( "./get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
-                                  % (er_start, er_stop, pass_dir) )
+            log.info("%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
+                     % (TASK_SHARE, er_start, er_stop, pass_dir))
+            Ska.Shell.bash_shell( "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
+                                  % (TASK_SHARE, er_start, er_stop, pass_dir) )
         #print pass_dir
             f = open(os.path.join(pass_dir, pass_time_file), 'w')
             f.write("obsid_datestart,obsid_datestop\n")
