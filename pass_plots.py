@@ -450,6 +450,7 @@ def per_pass_tasks( pass_dir ):
     
 
     # cut out nonsense bad data
+    types = ['time', 'aca_temp', 'ccd_temp', 'dac', 'obsids']
     filters = characteristics.telem_chomp_limits
     for type in filters.keys():
         if filters[type].has_key('max'):
@@ -461,7 +462,7 @@ def per_pass_tasks( pass_dir ):
                                                type,
                                                reduced_data[type][bad] ))
                 
-            for ttype in ('time', 'aca_temp', 'ccd_temp', 'dac'):
+            for ttype in types:
                 reduced_data[ttype] = reduced_data[ttype][goods]
         if filters[type].has_key('min'):
             goods = np.flatnonzero(reduced_data[type] >= filters[type]['min'])
@@ -471,7 +472,7 @@ def per_pass_tasks( pass_dir ):
                                                DateTime(reduced_data['time'][bad]).date,
                                                type,
                                                reduced_data[type][bad] ))
-            for ttype in ('time', 'aca_temp', 'ccd_temp', 'dac'):
+            for ttype in types:
                 reduced_data[ttype] = reduced_data[ttype][goods]
 
 
@@ -479,19 +480,30 @@ def per_pass_tasks( pass_dir ):
     limits = characteristics.telem_limits
     for type in limits.keys():
         if limits[type].has_key('max'):
-            if (max(reduced_data[type]) > limits[type]['max']):
-                log.warn("Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s" % (  
+            if ((max(reduced_data[type]) > limits[type]['max']) 
+                and not os.path.exists(os.path.join(pass_dir, 'warned.txt'))):
+                warn_text = ("Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s" % (  
                         type,
                         max(reduced_data[type]),
                         limits[type]['max'],
                         web_dir))
+                log.warn(warn_text)
+                warn_file = open(os.path.join(pass_dir, 'warned.txt'), 'w')
+                warn_file.write(warn_text)
+                warn_file.close()
+
         if limits[type].has_key('min'):
-            if (min(reduced_data[type]) < limits[type]['min']):
-                log.warn("Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s" % (  
+            if ((min(reduced_data[type]) < limits[type]['min'])
+                and not os.path.exists(os.path.join(pass_dir, 'warned.txt'))):
+                warn_text = ("Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s" % (  
                         type,
                         min(reduced_data[type]),
                         limits[type]['min'],
                         web_dir))
+                log.warn(warn_text)
+                warn_file = open(os.path.join(pass_dir, 'warned.txt'), 'w')
+                warn_file.write(warn_text)
+                warn_file.close()
 
 
     return reduced_data
