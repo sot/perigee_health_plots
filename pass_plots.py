@@ -200,12 +200,14 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
     import numpy as np
     pass_times = Ska.Table.read_ascii_table( os.path.join( pass_dir, pass_time_file))
     ccdm_files = sorted(glob.glob(os.path.join( pass_dir, "ccdm*")))
+
     for ccdm_file in ccdm_files:
         ccdm_table = Ska.Table.read_fits_table(ccdm_file)
         try:
             ccdm = np.append( ccdm, ccdm_table)
         except NameError:
             ccdm = ccdm_table
+
 
     slots = (0,1,2,6,7)
     aca0 = {}
@@ -236,7 +238,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
             maxtime = maxslottime
 
     # calculate the number of intervals for the time range
-    n_intervals = (DateTime(maxtime).secs - DateTime(mintime).secs)/time_interval
+    n_intervals = int((DateTime(maxtime).secs - DateTime(mintime).secs)/time_interval)
 
     result = {}
     # throw some stuff into a hash to have it handy later if needed
@@ -280,7 +282,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
                     # fudge it if missing ccdm data
                     products['obsids'] = np.ones(min_samples) * obsids[0]
                 else:
-                    products['obsids'] = obsids[0:min_samples-1]
+                    products['obsids'] = obsids[0:min_samples]
 
 
             products['dac'] = aca0[7]['HD3TLM76'][ok[7]] * 256. + aca0[7]['HD3TLM77'][ok[7]]
@@ -305,6 +307,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
                     parsed_telem[prod_type] = np.append( parsed_telem[prod_type], products[prod_type])
                 except KeyError:
                     parsed_telem[prod_type] = products[prod_type]
+
 
     return parsed_telem
 
