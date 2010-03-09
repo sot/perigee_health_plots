@@ -1,6 +1,6 @@
 
 TASK = perigee_health_plots
-VERSION = 2.0
+VERSION = 2.1
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
