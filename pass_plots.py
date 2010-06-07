@@ -312,6 +312,19 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
     return parsed_telem
 
 
+def get_telem_range( telem ):
+    # find the 5th and 95th percentiles
+    sorted = np.sort(telem)
+    ninety_five = sorted[int(len(sorted)*.95)]
+    five = sorted[int(len(sorted)*.05)]
+    mean = telem.mean()
+    # 10% = (ninety_five - five)/9.
+    # min = five - 10%
+    # max = ninety_five + 10%
+    return [five - ((ninety_five - five)/9.),
+            ninety_five + ((ninety_five - five)/9.)]
+
+
 def plot_pass( telem, pass_dir, redo=False ):
     """
     Make plots of of TEC DAC level and ACA and CCD temperatures from 8x8 image telemetry.
@@ -375,6 +388,9 @@ def plot_pass( telem, pass_dir, redo=False ):
     obslist.write("</TABLE>\n")
     obslist.close()
 
+    aca_temp_lims = get_telem_range(telem['aca_temp'])        
+    ccd_temp_lims = get_telem_range(telem['ccd_temp'])
+    
     h = plt.figure(tfig['dacvsdtemp'].number)
     plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
     plt.ylabel('TEC DAC Control Level')
@@ -393,15 +409,22 @@ def plot_pass( telem, pass_dir, redo=False ):
 
     h = plt.figure(tfig['aca_temp'].number)
     plt.ylabel('ACA temp (C)')
-    plt.ylim(characteristics.aca_temp_plot['ylim'])
+    plt.ylim(min( characteristics.aca_temp_plot['ylim'][0],
+                  aca_temp_lims[0]),
+             max( characteristics.aca_temp_plot['ylim'][1],
+                  aca_temp_lims[1]))
     h.subplots_adjust(left=0.2)
     plt.savefig(os.path.join(pass_dir, 'aca_temp.png'))
     plt.close(h)
 
     h = plt.figure(tfig['ccd_temp'].number)
     h.subplots_adjust(left=0.2)
-    plt.ylim(characteristics.ccd_temp_plot['ylim'])
+    plt.ylim(min( characteristics.ccd_temp_plot['ylim'][0],
+                  ccd_temp_lims[0]),
+             max( characteristics.ccd_temp_plot['ylim'][1],
+                  ccd_temp_lims[1]))
     plt.ylabel('CCD temp (C)')
+
     plt.savefig(os.path.join(pass_dir, 'ccd_temp.png'))
     plt.close(h)
 
