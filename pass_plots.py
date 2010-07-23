@@ -20,7 +20,7 @@ import matplotlib
 if __name__ == '__main__':
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-from Ska.Matplotlib import cxctime2plotdate
+from Ska.Matplotlib import cxctime2plotdate, plot_cxctime
 
 import characteristics
 
@@ -74,29 +74,29 @@ def get_options():
 
 # temporary custom plot_cxctime for non-interactive backends
 # should be removed now that Ska.Matplotlib 0.04 is installed
-def plot_cxctime(times, y, fig=None, **kwargs):
-    """Make a date plot where the X-axis values are in CXC time.  If no ``fig``
-    value is supplied then the current figure will be used (and created
-    automatically if needed).  Any additional keyword arguments
-    (e.g. ``fmt='b-'``) are passed through to the ``plot_date()`` function.
-
-    :param times: CXC time values for x-axis (date)
-    :param y: y values
-    :param fig: pyplot figure object (optional)
-    :param **kwargs: keyword args passed through to ``plot_date()``
-
-    :rtype: ticklocs, fig, ax = tick locations, figure, and axes object.
-    """
-    if fig is None:
-        fig = plt.gcf()
-
-    ax = fig.gca()
-    import Ska.Matplotlib
-    ax.plot_date(Ska.Matplotlib.cxctime2plotdate(times), y, **kwargs)
-    ticklocs = Ska.Matplotlib.set_time_ticks(ax)
-    fig.autofmt_xdate()
-
-    return ticklocs, fig, ax
+#def plot_cxctime(times, y, fig=None, **kwargs):
+#    """Make a date plot where the X-axis values are in CXC time.  If no ``fig``
+#    value is supplied then the current figure will be used (and created
+#    automatically if needed).  Any additional keyword arguments
+#    (e.g. ``fmt='b-'``) are passed through to the ``plot_date()`` function.
+#
+#    :param times: CXC time values for x-axis (date)
+#    :param y: y values
+#    :param fig: pyplot figure object (optional)
+#    :param **kwargs: keyword args passed through to ``plot_date()``
+#
+#    :rtype: ticklocs, fig, ax = tick locations, figure, and axes object.
+#    """
+#    if fig is None:
+#        fig = plt.gcf()
+#
+#    ax = fig.gca()
+#    import Ska.Matplotlib
+#    ax.plot_date(Ska.Matplotlib.cxctime2plotdate(times), y, **kwargs)
+#    ticklocs = Ska.Matplotlib.set_time_ticks(ax)
+#    fig.autofmt_xdate()
+#
+#    return ticklocs, fig, ax
 
 def retrieve_perigee_telem(start='2009:100:00:00:00.000', 
                            stop=None,
@@ -221,6 +221,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
                 else:
                     aca0[slot] = aca_table
 
+
     mintime = pass_times[0].obsid_datestart
     maxtime = pass_times[0].obsid_datestop
 
@@ -300,7 +301,10 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
             #products['h276'] = aca0[2]['HD3TLM76'] * 256 + aca0[2]['HD3TLM77']
             products['aca_temp'] = aca0[7]['HD3TLM73'][ok[7]] * (1/256.) +  aca0[7]['HD3TLM72'][ok[7]]
             products['ccd_temp'] = ( (aca0[6]['HD3TLM76'][ok[6]] * 256.) + (aca0[6]['HD3TLM77'][ok[6]] - 65536. )) / 100.
-
+            products['temphous'] = aca0[0][ok[0]]['TEMPHOUS']
+            products['tempprim'] = aca0[0][ok[0]]['TEMPPRIM']
+            products['tempsec'] = aca0[0][ok[0]]['TEMPSEC']
+            products['tempccd'] = aca0[0][ok[0]]['TEMPCCD']
 
             for prod_type in products.keys():
                 try:
@@ -573,6 +577,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
 
     for month in sorted(months.keys()):
 
+        log.info('working in %s' % month)
         toptable.write("<TR><TD><A HREF=\"%s/SUMMARY_DATA/%s\">%s</TD></TR>\n" 
                        % (URL, month, month))
 
@@ -590,16 +595,22 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
         month_start = mx.DateTime.DateTime(int(month_split.group(1)), int(month_split.group(2)), 1)
         # only bother with recent passes unless we are in remake mode
         if (month_start >= last_month_start) or (redo == True):
+
             
             tfig = {}
             tfig['dacvsdtemp'] = plt.figure(num=5,figsize=(4,3))
             tfig['dac'] = plt.figure(num=6,figsize=(4,3))
             tfig['aca_temp'] = plt.figure(num=7,figsize=(4,3))
             tfig['ccd_temp'] = plt.figure(num=8,figsize=(4,3))
+            tfig['ccd_month'] = plt.figure(num=9,figsize=(8,3))
 
             passlist = open(os.path.join(monthdir, 'passlist.htm'),'w')    
             passlist.write("<TABLE>\n")
             passdates = []
+            temp_range = dict(aca_temp=dict(max=None,
+                                            min=None),
+                              ccd_temp=dict(max=None,
+                                            min=None))
 
             for pass_dir in months[month]:
                 match_date = re.search("(\d{4}:\d{3}:\d{2}:\d{2}:\d{2}\.\d{3})", pass_dir)
@@ -634,6 +645,14 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                         plot_cxctime( [ DateTime(passdate).secs ], 
                                       [ telem[ttype].mean() ],
                                       color=curr_color, marker='.', markersize=10)
+                        if re.search('temp', ttype):
+                            if (temp_range[ttype]['min'] == None
+                                or temp_range[ttype]['min'] > telem[ttype].min()):
+                                temp_range[ttype]['min'] = telem[ttype].min()
+                            if (temp_range[ttype]['max'] == None
+                                or temp_range[ttype]['max'] < telem[ttype].max()):
+                                temp_range[ttype]['max'] = telem[ttype].max()
+                                
 
                 except ValueError:
                     print "skipping %s" % pass_dir
@@ -641,39 +660,82 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
             passlist.write("</TABLE>\n")
             passlist.close()
 
-            h = plt.figure(tfig['dacvsdtemp'].number)
+            f = plt.figure(tfig['dacvsdtemp'].number)
             plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
             plt.xlim(characteristics.dacvsdtemp_plot['xlim'])
             plt.ylabel('TEC DAC Control Level')
             plt.xlabel('ACA temp - CCD temp (C)')
-            h.subplots_adjust(bottom=0.2,left=0.2)
+            f.subplots_adjust(bottom=0.2,left=0.2)
             plt.savefig(os.path.join(monthdir, 'dacvsdtemp.png'))
-            plt.close(h)
+            plt.close(f)
 
-
-            h = plt.figure(tfig['aca_temp'].number)
+            time_pad = .1
+            f = plt.figure(tfig['aca_temp'].number)
             plt.ylabel('ACA temp (C)')
-            h.subplots_adjust(left=0.2)
-            plt.ylim(characteristics.aca_temp_plot['ylim'])
+            f.subplots_adjust(left=0.2)
+            plt.ylim(min( characteristics.aca_temp_plot['ylim'][0],
+                          temp_range['aca_temp']['min']),
+                     max( characteristics.aca_temp_plot['ylim'][1],
+                          temp_range['aca_temp']['max']))
+            curr_xlims = plt.xlim()
+            dxlim = curr_xlims[1]-curr_xlims[0]
+            plt.xlim( curr_xlims[0]-time_pad*dxlim, curr_xlims[1]+time_pad*dxlim)
             plt.savefig(os.path.join(monthdir, 'aca_temp.png'))
-            plt.close(h)
+            plt.close(f)
 
-            h = plt.figure(tfig['ccd_temp'].number)
+            f = plt.figure(tfig['ccd_temp'].number)
             plt.ylabel('CCD temp (C)')
-            plt.ylim(characteristics.ccd_temp_plot['ylim'])
-            h.subplots_adjust(left=0.2)
+            plt.ylim(min( characteristics.ccd_temp_plot['ylim'][0],
+                          temp_range['ccd_temp']['min']),
+                     max( characteristics.ccd_temp_plot['ylim'][1],
+                          temp_range['ccd_temp']['max']))
+            f.subplots_adjust(left=0.2)
+            curr_xlims = plt.xlim()
+            dxlim = curr_xlims[1]-curr_xlims[0]
+            plt.xlim( curr_xlims[0]-time_pad*dxlim, curr_xlims[1]+time_pad*dxlim)
             plt.savefig(os.path.join(monthdir, 'ccd_temp.png'))
-            plt.close(h)
+            plt.close(f)
 
-            h = plt.figure(tfig['dac'].number)
+            f = plt.figure(tfig['dac'].number)
             plt.ylim(characteristics.dac_plot['ylim'])
-        #    xlim(cxctime2plotdate([DateTime(passdates[0]).secs - 86400,
-        #                           DateTime(passdates[-1]).secs + 86400]))
             plt.ylabel('TEC DAC Control Level')
-            h.subplots_adjust(left=0.2)
+            curr_xlims = plt.xlim()
+            dxlim = curr_xlims[1]-curr_xlims[0]
+            plt.xlim( curr_xlims[0]-time_pad*dxlim, curr_xlims[1]+time_pad*dxlim)
+            f.subplots_adjust(left=0.2)
             plt.savefig(os.path.join(monthdir, 'dac.png'))
-            plt.close(h)
+            plt.close(f)
 
+            f = plt.figure(tfig['ccd_month'].number)
+            from Ska.engarchive import fetch
+            telem = fetch.MSID('AACCCDPT',
+                               DateTime(passdates[0]).secs - 86400,
+                               DateTime(passdates[-1]).secs + 86400)
+            ccd_temps = telem.vals - 273.15
+            # cut out nonsense bad data using the ccd_temp filter
+            # in characteristics
+            filters = characteristics.telem_chomp_limits
+            type = 'ccd_temp'
+            goodfilt = ((ccd_temps <= filters[type]['max'] )
+                        & (ccd_temps >= filters[type]['min']))
+            goods = np.flatnonzero(goodfilt)
+            bads = np.flatnonzero(goodfilt == False)
+            for bad in bads:
+                        log.info("filtering %s,%s,%6.2f" % (  
+                            DateTime(telem.times[bad]).date,
+                            'AACCCDPT',
+                            ccd_temps[bad] ))
+            ccd_temps = ccd_temps[goods]
+            ccd_times = telem.times[goods]
+            plot_cxctime(ccd_times, ccd_temps, 'k.')
+            plt.ylim(min( characteristics.ccd_temp_plot['ylim'][0],
+                          temp_range['ccd_temp']['min']),
+                     max( characteristics.ccd_temp_plot['ylim'][1],
+                          temp_range['ccd_temp']['max']))
+            plt.ylabel('CCD Temp (C)')
+            plt.savefig(os.path.join(monthdir, 'ccd_temp_all.png'))
+            plt.close(f)
+            
             django_context = django.template.Context({ 'task' : { 'url' : URL },
                                                        'month' : { 'name' : month }})
             index = os.path.join(monthdir, 'index.html')
@@ -709,10 +771,13 @@ def main():
     log.addHandler(ch)
     nowdate=DateTime(time.time(), format='unix').mxDateTime
     nowminus=nowdate - mx.DateTime.DateTimeDeltaFromDays(30)
-    last_month_start = mx.DateTime.DateTime(nowminus.year, nowminus.month, 1)
-    dirs = retrieve_perigee_telem(start=last_month_start)
+    #last_month_start = mx.DateTime.DateTime(nowminus.year, nowminus.month, 1)
+    #last_month_start = mx.DateTime.DateTime(2005,1,1)
+    #dirs = retrieve_perigee_telem(start=last_month_start)
+    dirs = retrieve_perigee_telem(start=nowminus)
     dirs.sort()
     for dir in dirs:
+        print dir
         try:
             per_pass_tasks( dir )
         except ValueError:
