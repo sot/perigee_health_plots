@@ -283,7 +283,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
                     # fudge it if missing ccdm data
                     products['obsids'] = np.ones(min_samples) * obsids[0]
                 else:
-                    products['obsids'] = obsids[0:min_samples]
+                    products['obsids'] = obsids[0:min_samples+1]
 
 
             products['dac'] = aca0[7]['HD3TLM76'][ok[7]] * 256. + aca0[7]['HD3TLM77'][ok[7]]
