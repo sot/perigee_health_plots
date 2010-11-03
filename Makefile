@@ -12,7 +12,7 @@ TEMPLATES = templates/top_index_template.html templates/month_index_template.htm
 install: 
 ifdef TEMPLATES
 	mkdir -p $(INSTALL_SHARE)/templates/
-	rsynce --times --cvs-exclude $(TEMPLATES) $(INSTALL_SHARE)/templates/
+	rsync --times --cvs-exclude $(TEMPLATES) $(INSTALL_SHARE)/templates/
 endif
 ifdef DATA
 	mkdir -p $(INSTALL_DATA)
