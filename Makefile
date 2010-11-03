@@ -4,10 +4,16 @@ VERSION = 2.1
 
 include /proj/sot/ska/include/Makefile.FLIGHT
 
-SHARE = get_perigee_telem.pl pass_plots.py month_index_template.html pass_index_template.html top_index_template.html characteristics.py
+SHARE = get_perigee_telem.pl pass_plots.py  characteristics.py
+
+TEMPLATES = templates/top_index_template.html templates/month_index_template.html pass_index_template.html
 
 
 install: 
+ifdef TEMPLATES
+	mkdir -p $(INSTALL_SHARE)/templates/
+	rsynce --times --cvs-exclude $(TEMPLATES) $(INSTALL_SHARE)/templates/
+endif
 ifdef DATA
 	mkdir -p $(INSTALL_DATA)
 	rsync --times --cvs-exclude $(DATA) $(INSTALL_DATA)/
