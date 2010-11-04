@@ -42,8 +42,7 @@ colors = characteristics.plot_colors
 pass_color_maker = cycle(colors)
 obsid_color_maker = cycle(colors)
 
-#TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_health_plots')
-TASK_SHARE = '.'
+TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_health_plots')
 TASK_DIR = '/proj/sot/ska/www/ASPECT/perigee_health_plots'
 URL = 'http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots'
 PASS_DATA = os.path.join(TASK_DIR, 'PASS_DATA')
