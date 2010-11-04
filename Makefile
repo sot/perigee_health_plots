@@ -6,7 +6,7 @@ include /proj/sot/ska/include/Makefile.FLIGHT
 
 SHARE = get_perigee_telem.pl pass_plots.py  characteristics.py
 
-TEMPLATES = templates/top_index_template.html templates/month_index_template.html pass_index_template.html
+TEMPLATES = templates/top_index_template.html templates/month_index_template.html templates/pass_index_template.html
 
 
 install: 
