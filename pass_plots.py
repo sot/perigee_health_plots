@@ -11,6 +11,7 @@ from logging.handlers import SMTPHandler
 from itertools import count, izip, cycle
 import mx.DateTime
 import jinja2
+import json
 
 from Chandra.Time import DateTime
 from Ska.DBI import DBI
@@ -33,20 +34,23 @@ smtp_handler = logging.handlers.SMTPHandler('localhost',
                                            'jeanconn@head.cfa.harvard.edu',
                                            'jeanconn@head.cfa.harvard.edu',
                                            'perigee health mon')
+
 smtp_handler.setLevel(logging.WARN)
 log.addHandler(smtp_handler) 
-
-
 
 colors = characteristics.plot_colors
 pass_color_maker = cycle(colors)
 obsid_color_maker = cycle(colors)
 
+task = 'perigee_health_plots'
 TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_health_plots')
-TASK_DIR = '/proj/sot/ska/www/ASPECT/perigee_health_plots'
-URL = 'http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots'
-PASS_DATA = os.path.join(TASK_DIR, 'PASS_DATA')
-SUMMARY_DATA = os.path.join(TASK_DIR, 'SUMMARY_DATA')
+
+
+
+#TASK_DIR = '/proj/sot/ska/www/ASPECT/perigee_health_plots'
+#URL = 'http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots'
+#PASS_DATA = os.path.join(TASK_DIR, 'PASS_DATA')
+#SUMMARY_DATA = os.path.join(TASK_DIR, 'SUMMARY_DATA')
 
 ## Django setup for template rendering
 #import django.template
@@ -69,17 +73,29 @@ def get_options():
                       default=1,
                       help="Verbosity (0=quiet, 1=normal, 2=debug)",
                       )
+    parser.add_option("--web_dir",
+                      default="/proj/sot/ska/www/ASPECT/%s" % task,
+                      help="Output web directory")
+    parser.add_option("--data_dir",
+                      default="/proj/sot/ska/data/%s" % task,
+                      help="Output data directory")
+    parser.add_option("--web_server",
+                      default="http://cxc.harvard.edu")
+    parser.add_option("--url_dir",
+                      default="/mta/ASPECT/%s" % task)
     parser.add_option("--days_back",
                       type='int',
                       default=30,
-                      help="Number of days back to search for perigee passes for new plots",
-                      )
+                      help="Number of days back to search for perigee passes for new plots",                      )
+    parser.add_option("--start_time",
+                      default=None)
     (opt,args) = parser.parse_args()
     return opt, args
 
 
 def retrieve_perigee_telem(start='2009:100:00:00:00.000', 
                            stop=None,
+                           pass_data_dir='.',
                            redo=False):
     """
     Retrieve perigee pass and other 8x8 image telemetry.
@@ -98,13 +114,15 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
     if stop is None:
         tstop=DateTime(time.time(), format='unix')
 
-    log.info("retrieve_perigee_telem(): Checking for current telemetry from %s" % tstart.date)
+    log.info("retrieve_perigee_telem(): Checking for current telemetry from %s"
+             % tstart.date)
 
-    pass_data_dir = PASS_DATA
     pass_time_file = 'pass_times.txt'
     aca_db = DBI(dbi='sybase')
-    obsids = aca_db.fetchall("SELECT obsid,obsid_datestart,obsid_datestop from observations " 
-                             "where obsid_datestart > '%s' and obsid_datestart < '%s'" 
+    obsids = aca_db.fetchall("""SELECT obsid,obsid_datestart,obsid_datestop
+                                from observations  
+                                where obsid_datestart > '%s'
+                                and obsid_datestart < '%s'""" 
                              % (tstart.date,tstop.date));
 
     # find the ERs
@@ -309,7 +327,7 @@ def get_telem_range( telem ):
             ninety_five + ((ninety_five - five)/9.)]
 
 
-def plot_pass( telem, pass_dir, redo=False ):
+def plot_pass( telem, pass_dir, url, redo=False ):
     """
     Make plots of of TEC DAC level and ACA and CCD temperatures from 8x8 image telemetry.
     Create html for the per-pass page to contain the figures.
@@ -413,7 +431,7 @@ def plot_pass( telem, pass_dir, redo=False ):
     plt.close(h)
     
     pass_index_template = jinja_env.get_template('pass_index_template.html')
-    pass_index_page = pass_index_template.render(task={'url' : URL})
+    pass_index_page = pass_index_template.render(task={'url' : url})
     pass_fh = open(os.path.join(pass_dir, 'index.html'), 'w')
     pass_fh.write(pass_index_page)
     pass_fh.close()
@@ -421,27 +439,31 @@ def plot_pass( telem, pass_dir, redo=False ):
     
 
 
-def per_pass_tasks( pass_dir ):
-
-    web_dir = re.sub( TASK_DIR, URL, pass_dir )
+def per_pass_tasks( pass_tail_dir, opt):
 
     tfile = 'telem.pickle'
-    if not os.path.exists(os.path.join(pass_dir, tfile)):
-        reduced_data = perigee_parse( pass_dir )
-        f = open(os.path.join(pass_dir, tfile), 'w')
+    pass_data_dir = os.path.join(opt.data_dir, 'PASS_DATA', pass_tail_dir)
+    if not os.path.exists(pass_data_dir):
+        os.makedirs(pass_data_dir)
+    if not os.path.exists(os.path.join(pass_data_dir, tfile)):
+        reduced_data = perigee_parse( pass_data_dir )
+        f = open(os.path.join(pass_data_dir, tfile), 'w')
         cPickle.dump( reduced_data, f )
         f.close()
     else:
-        f = open(os.path.join(pass_dir, tfile), 'r')
+        f = open(os.path.join(pass_data_dir, tfile), 'r')
         reduced_data = cPickle.load(f)
         f.close()
 
     if not reduced_data.has_key('time'):
-        raise ValueError("Error parsing telem for %s" % pass_dir)
+        raise ValueError("Error parsing telem for %s" % pass_data_dir)
 
     telem_time_file = 'telem_time.htm'
-    if not os.path.exists(os.path.join(pass_dir, telem_time_file)):
-        tf = open(os.path.join(pass_dir, telem_time_file), 'w')
+    pass_web_dir = os.path.join(opt.web_dir, 'PASS_DATA', pass_tail_dir)
+    if not os.path.exists(pass_web_dir):
+        os.makedirs(pass_web_dir)
+    if not os.path.exists(os.path.join(pass_web_dir, telem_time_file)):
+        tf = open(os.path.join(pass_web_dir, telem_time_file), 'w')
         tf.write("<TABLE BORDER=1>\n")
         tf.write("<TR><TH>datestart</TH><TH>datestop</TH></TR>\n")
         tf.write("<TR><TD>%s</TD><TD>%s</TD></TR>\n" % 
@@ -480,36 +502,50 @@ def per_pass_tasks( pass_dir ):
 
     # limit checks
     limits = characteristics.telem_limits
+    pass_url = opt.web_server + os.path.join(opt.url_dir, 'PASS_DATA', pass_tail_dir)
     for type in limits.keys():
         if limits[type].has_key('max'):
             if ((max(reduced_data[type]) > limits[type]['max']) 
-                and not os.path.exists(os.path.join(pass_dir, 'warned.txt'))):
+                and not os.path.exists(os.path.join(pass_data_dir, 'warned.txt'))):
                 warn_text = ("Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s" % (  
                         type,
                         max(reduced_data[type]),
                         limits[type]['max'],
-                        web_dir))
+                        pass_url))
                 log.warn(warn_text)
-                warn_file = open(os.path.join(pass_dir, 'warned.txt'), 'w')
+                warn_file = open(os.path.join(pass_data_dir, 'warned.txt'), 'w')
                 warn_file.write(warn_text)
                 warn_file.close()
 
         if limits[type].has_key('min'):
             if ((min(reduced_data[type]) < limits[type]['min'])
-                and not os.path.exists(os.path.join(pass_dir, 'warned.txt'))):
+                and not os.path.exists(os.path.join(pass_data_dir, 'warned.txt'))):
                 warn_text = ("Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s" % (  
                         type,
                         min(reduced_data[type]),
                         limits[type]['min'],
-                        web_dir))
+                        pass_url))
                 log.warn(warn_text)
-                warn_file = open(os.path.join(pass_dir, 'warned.txt'), 'w')
+                warn_file = open(os.path.join(pass_data_dir, 'warned.txt'), 'w')
                 warn_file.write(warn_text)
                 warn_file.close()
 
+    plot_pass(reduced_data, pass_web_dir, url=opt.url_dir)                
+    save_pass(reduced_data, pass_data_dir)
 
     return reduced_data
 
+
+def save_pass(telem, pass_data_dir):
+    pass_save={}
+    for ttype in ('aca_temp', 'ccd_temp', 'dac'):
+        pass_save[ttype] = dict(min=np.min(telem[ttype]),
+                                max=np.max(telem[ttype]),
+                                mean=np.mean(telem[ttype]))
+    rep_file = open(os.path.join(pass_data_dir, 'pass.json'), 'w')
+    rep_file.write(json.dumps(pass_save, sort_keys=True, indent=4))
+    rep_file.close()
+                   
 
 #def pass_stats_and_plots():
 #    """
@@ -521,7 +557,7 @@ def per_pass_tasks( pass_dir ):
 #        plot_pass( telem, pass_dir )
 
 
-def month_stats_and_plots(lookbackdays=30, redo=False):
+def month_stats_and_plots(start, opt, redo=False):
     """ 
     Make summary plots and statistics reports for months
 
@@ -530,14 +566,9 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
 
     """
 
-    # 
-    nowdate=DateTime(time.time(), format='unix').mxDateTime
-    nowminus=nowdate - mx.DateTime.DateTimeDeltaFromDays(lookbackdays)
-    last_month_start = mx.DateTime.DateTime(nowminus.year, nowminus.month, 1)
-
-    toptable = open(os.path.join(TASK_DIR, 'toptable.htm'), 'w')
+    toptable = open(os.path.join(opt.web_dir, 'toptable.htm'), 'w')
     toptable.write("<TABLE BORDER=1>\n")
-    year_dirs = glob.glob(os.path.join(PASS_DATA, '*'))
+    year_dirs = glob.glob(os.path.join(opt.data_dir, 'PASS_DATA', '*'))
     year_dirs.sort()
     for year_dir in year_dirs:
         match_year = re.match(".*(\d{4})$", year_dir)
@@ -558,21 +589,22 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
             month_range = Ska.report_ranges.timerange(month)
             log.info('working in %s' % month)
             toptable.write("<TD><A HREF=\"%s/SUMMARY_DATA/%s\">%s</TD>" 
-                           % (URL, month, month))
+                           % (opt.url_dir, month, month))
 
-            monthdir = os.path.join(SUMMARY_DATA, month)
+            month_data_dir = os.path.join(opt.data_dir, 'SUMMARY_DATA', month)
+            month_web_dir = os.path.join(opt.web_dir, 'SUMMARY_DATA', month)
             pass_file = 'pass_list.txt'
-            if not os.path.exists(monthdir):
-                os.makedirs(monthdir)
-
-            pf = open( os.path.join(monthdir, pass_file), 'w')
+            if not os.path.exists(month_data_dir):
+                os.makedirs(month_data_dir)
+            if not os.path.exists(month_web_dir):
+                os.makedirs(month_web_dir)
+            pf = open( os.path.join(month_data_dir, pass_file), 'w')
             for pass_dir in months[month]:
                 pf.write("%s\n" % pass_dir)
             pf.close()    
 
-
             # only bother with recent passes unless we are in remake mode
-            if (month_range['start'] >= last_month_start) or (redo == True):
+            if (month_range['start'] >= start) or (redo == True):
 
                 tfig = {}
                 tfig['dacvsdtemp'] = plt.figure(num=5,figsize=(4,3))
@@ -581,7 +613,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                 tfig['ccd_temp'] = plt.figure(num=8,figsize=(4,3))
                 tfig['ccd_month'] = plt.figure(num=9,figsize=(8,3))
 
-                passlist = open(os.path.join(monthdir, 'passlist.htm'),'w')    
+                passlist = open(os.path.join(month_web_dir, 'passlist.htm'),'w')    
                 passlist.write("<TABLE>\n")
                 passdates = []
                 temp_range = dict(aca_temp=dict(max=None,
@@ -596,21 +628,22 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                     mxpassdate = DateTime(passdate).mxDateTime
 
                     try:
-                        telem = per_pass_tasks(pass_dir)
+                        PASS_DATA = os.path.join(opt.data_dir, 'PASS_DATA')
+                        pass_tail_dir = re.sub( "%s/" % PASS_DATA, '', pass_dir )
+                        telem = per_pass_tasks( pass_tail_dir, opt )
                         curr_color = pass_color_maker.next()
                         passlist.write("<TR><TD><A HREF=\"%s/PASS_DATA/%d/%s\">%s</A></TD><TD BGCOLOR=\"%s\">&nbsp;</TD></TR>\n" 
-                                       % ( URL,
+                                       % ( opt.url_dir,
                                            mxpassdate.year,
                                            passdate,
                                            DateTime(telem['time'].min()).date, 
                                            curr_color))
-                        plot_pass( telem, pass_dir, redo=redo)
                         plt.figure(tfig['dacvsdtemp'].number)
                         # add randomization to dac
                         rand_dac = telem['dac'] + np.random.random(len(telem['dac']))-.5
                         plt.plot( telem['aca_temp']- telem['ccd_temp'], 
-                              rand_dac,
-                              color=curr_color, marker='.', markersize=.5)
+                                  rand_dac,
+                                  color=curr_color, marker='.', markersize=.5)
                         for ttype in ('aca_temp', 'ccd_temp', 'dac'):
                             plt.figure(tfig[ttype].number)
                             plot_cxctime( [ DateTime(passdate).secs, DateTime(passdate).secs], 
@@ -643,7 +676,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                 plt.ylabel('TEC DAC Control Level')
                 plt.xlabel('ACA temp - CCD temp (C)')
                 f.subplots_adjust(bottom=0.2,left=0.2)
-                plt.savefig(os.path.join(monthdir, 'dacvsdtemp.png'))
+                plt.savefig(os.path.join(month_web_dir, 'dacvsdtemp.png'))
                 plt.close(f)
 
                 time_pad = .1
@@ -657,7 +690,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                 curr_xlims = plt.xlim()
                 dxlim = curr_xlims[1]-curr_xlims[0]
                 plt.xlim( curr_xlims[0]-time_pad*dxlim, curr_xlims[1]+time_pad*dxlim)
-                plt.savefig(os.path.join(monthdir, 'aca_temp.png'))
+                plt.savefig(os.path.join(month_web_dir, 'aca_temp.png'))
                 plt.close(f)
 
                 f = plt.figure(tfig['ccd_temp'].number)
@@ -670,7 +703,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                 curr_xlims = plt.xlim()
                 dxlim = curr_xlims[1]-curr_xlims[0]
                 plt.xlim( curr_xlims[0]-time_pad*dxlim, curr_xlims[1]+time_pad*dxlim)
-                plt.savefig(os.path.join(monthdir, 'ccd_temp.png'))
+                plt.savefig(os.path.join(month_web_dir, 'ccd_temp.png'))
                 plt.close(f)
 
                 f = plt.figure(tfig['dac'].number)
@@ -680,7 +713,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                 dxlim = curr_xlims[1]-curr_xlims[0]
                 plt.xlim( curr_xlims[0]-time_pad*dxlim, curr_xlims[1]+time_pad*dxlim)
                 f.subplots_adjust(left=0.2)
-                plt.savefig(os.path.join(monthdir, 'dac.png'))
+                plt.savefig(os.path.join(month_web_dir, 'dac.png'))
                 plt.close(f)
 
                 f = plt.figure(tfig['ccd_month'].number)
@@ -710,7 +743,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                          max( characteristics.ccd_temp_plot['ylim'][1],
                               temp_range['ccd_temp']['max']))
                 plt.ylabel('CCD Temp (C)')
-                plt.savefig(os.path.join(monthdir, 'ccd_temp_all.png'))
+                plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
                 plt.close(f)
 
                 next_month = Ska.report_ranges.get_next(month_range)
@@ -718,10 +751,10 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
                 prev_month = Ska.report_ranges.get_prev(month_range)
                 prev_string = '%d-%s' % (prev_month['year'], prev_month['subid'])
                 
-                month_index = os.path.join(monthdir, 'index.html')
+                month_index = os.path.join(month_web_dir, 'index.html')
                 log.info("making %s" % month_index)
                 month_template = jinja_env.get_template('month_index_template.html')
-                page = month_template.render(task={'url': URL,
+                page = month_template.render(task={'url': opt.url_dir,
                                                    'next' : next_string,
                                                    'prev' : prev_string},
                                              month={'name':month})
@@ -736,7 +769,7 @@ def month_stats_and_plots(lookbackdays=30, redo=False):
 
     topindex_template_file = os.path.join(TASK_SHARE, 'templates', 'top_index_template.html')
     topindex_template = open(topindex_template_file).read()
-    topindex = open(os.path.join(TASK_DIR, 'index.html'), 'w')
+    topindex = open(os.path.join(opt.web_dir, 'index.html'), 'w')
     topindex.writelines(topindex_template)
     topindex.close()
 
@@ -750,21 +783,27 @@ def main():
     if opt.verbose == 0:
         ch.setLevel(logging.ERROR)
     log.addHandler(ch)
-    nowdate=DateTime(time.time(), format='unix').mxDateTime
-    nowminus=nowdate - mx.DateTime.DateTimeDeltaFromDays(opt.days_back)
-    #last_month_start = mx.DateTime.DateTime(nowminus.year, nowminus.month, 1)
-    #last_month_start = mx.DateTime.DateTime(2005,1,1)
-    #dirs = retrieve_perigee_telem(start=last_month_start)
-    dirs = retrieve_perigee_telem(start=nowminus)
-    dirs.sort()
-    for dir in dirs:
-        print dir
-        try:
-            per_pass_tasks( dir )
-        except ValueError:
-            print "skipping %s" % dir
-    month_stats_and_plots()
+    PASS_DATA = os.path.join(opt.data_dir, 'PASS_DATA')
+    if not os.path.exists(PASS_DATA):
+        os.makedirs(PASS_DATA)
 
+    nowdate=DateTime(time.time(), format='unix').mxDateTime
+    if opt.start_time is None:
+        nowminus=nowdate - mx.DateTime.DateTimeDeltaFromDays(opt.days_back)
+    else:
+        nowminus=DateTime(opt.start_time).mxDateTime
+    last_month_start = mx.DateTime.DateTime(nowminus.year, nowminus.month, 1)
+    pass_dirs = retrieve_perigee_telem(start=nowminus, pass_data_dir=PASS_DATA)
+    pass_dirs.sort()
+    for pass_dir in pass_dirs:
+        try:
+            pass_tail_dir = re.sub( "%s/" % PASS_DATA, '', pass_dir )
+            telem = per_pass_tasks( pass_tail_dir, opt )
+        except ValueError:
+            print "skipping %s" % pass_dir
+    month_stats_and_plots(start=last_month_start,
+                          opt=opt)
+        
 
 if __name__ == '__main__':
     main()
