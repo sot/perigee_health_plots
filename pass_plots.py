@@ -46,7 +46,6 @@ task = 'perigee_health_plots'
 TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_health_plots')
 
 
-
 #TASK_DIR = '/proj/sot/ska/www/ASPECT/perigee_health_plots'
 #URL = 'http://cxc.harvard.edu/mta/ASPECT/perigee_health_plots'
 #PASS_DATA = os.path.join(TASK_DIR, 'PASS_DATA')
@@ -783,6 +782,7 @@ def main():
     if opt.verbose == 0:
         ch.setLevel(logging.ERROR)
     log.addHandler(ch)
+
     PASS_DATA = os.path.join(opt.data_dir, 'PASS_DATA')
     if not os.path.exists(PASS_DATA):
         os.makedirs(PASS_DATA)
@@ -793,6 +793,9 @@ def main():
     else:
         nowminus=DateTime(opt.start_time).mxDateTime
     last_month_start = mx.DateTime.DateTime(nowminus.year, nowminus.month, 1)
+
+    log.info("---------- Perigee Pass Plots ran at %s ----------" % nowdate)
+    log.info("Processing %s to %s" % (last_month_start,nowdate))
     pass_dirs = retrieve_perigee_telem(start=nowminus, pass_data_dir=PASS_DATA)
     pass_dirs.sort()
     for pass_dir in pass_dirs:
