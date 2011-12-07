@@ -31,8 +31,8 @@ log.setLevel(logging.DEBUG)
 
 # emails...                                                                                      
 smtp_handler = logging.handlers.SMTPHandler('localhost',
-                                           'jeanconn@head.cfa.harvard.edu',
-                                           'jeanconn@head.cfa.harvard.edu',
+                                           'aca@head.cfa.harvard.edu',
+                                           'aca@head.cfa.harvard.edu',
                                            'perigee health mon')
 
 smtp_handler.setLevel(logging.WARN)
@@ -117,7 +117,7 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
              % tstart.date)
 
     pass_time_file = 'pass_times.txt'
-    aca_db = DBI(dbi='sybase')
+    aca_db = DBI(dbi='sybase', server='sybase', user='aca_read', database='aca')
     obsids = aca_db.fetchall("""SELECT obsid,obsid_datestart,obsid_datestop
                                 from observations  
                                 where obsid_datestart > '%s'
