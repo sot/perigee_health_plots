@@ -5,7 +5,7 @@ VERSION = 2.1
 include /proj/sot/ska/include/Makefile.FLIGHT
 
 SHARE = get_perigee_telem.pl pass_plots.py  characteristics.py
-
+DATA = task_schedule.cfg
 TEMPLATES = templates/top_index_template.html templates/month_index_template.html templates/pass_index_template.html
 
 
