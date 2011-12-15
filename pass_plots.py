@@ -31,8 +31,8 @@ log.setLevel(logging.DEBUG)
 
 # emails...                                                                                      
 smtp_handler = logging.handlers.SMTPHandler('localhost',
-                                           'aca@head.cfa.harvard.edu',
-                                           'aca@head.cfa.harvard.edu',
+                                           'jeanconn@head.cfa.harvard.edu',
+                                           'jeanconn@head.cfa.harvard.edu',
                                            'perigee health mon')
 
 smtp_handler.setLevel(logging.WARN)
@@ -43,6 +43,7 @@ pass_color_maker = cycle(colors)
 obsid_color_maker = cycle(colors)
 
 task = 'perigee_health_plots'
+SKA = os.environ['SKA']
 TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_health_plots')
 
 
@@ -73,10 +74,10 @@ def get_options():
                       help="Verbosity (0=quiet, 1=normal, 2=debug)",
                       )
     parser.add_option("--web_dir",
-                      default="/proj/sot/ska/www/ASPECT/%s" % task,
+                      default="%s/www/ASPECT/%s" % (SKA, task),
                       help="Output web directory")
     parser.add_option("--data_dir",
-                      default="/proj/sot/ska/data/%s" % task,
+                      default="%s/data/%s" % (SKA, task),
                       help="Output data directory")
     parser.add_option("--web_server",
                       default="http://cxc.harvard.edu")
@@ -125,29 +126,25 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
                              % (tstart.date,tstop.date));
 
     # find the ERs
-    obs_is_er = np.zeros(len(obsids))
-    obs_is_er[np.flatnonzero( obsids.obsid > 40000 )] = 1
+    obsid_is_er = np.where(obsids['obsid'] > 40000, 1, 0)
 
-    # step through the obsids and find the contiguous ER ranges
-    # ( matrix logical operations for this broke and should be re-attempted )
-    toggle = None
-    er_starts_idx = []
-    er_stops_idx = []
-    for idx in range(0,len(obs_is_er)):
-        if obs_is_er[idx] == 1:
-            if toggle is None or toggle == 0:
-                toggle = 1
-                er_starts_idx.append(idx)
+    er_starts_idx = 1 + np.flatnonzero(obsid_is_er[1:] - obsid_is_er[0:-1] == 1)
+    er_stops_idx = np.flatnonzero(obsid_is_er[1:] - obsid_is_er[0:-1] == -1)
+    if (np.max(er_starts_idx) > np.max(er_stops_idx)):
+        if obsids[-1]['obsid'] > 40000:
+            er_stops_idx = np.append(er_stops_idx, len(obsids) - 1)
         else:
-            if toggle == 1:
-                toggle = 0
-                er_stops_idx.append(idx)
-    er_starts = DateTime( obsids[er_starts_idx].obsid_datestart )
-    er_stops = DateTime( obsids[np.array(er_stops_idx) - 1].obsid_datestop )
+            raise ValueError("ER logic fail, pass start but no stop")
+
+    er_starts = DateTime(obsids[er_starts_idx].obsid_datestart)
+    er_stops = DateTime(obsids[np.array(er_stops_idx) - 1].obsid_datestop)
 
     pass_dirs = []
     # for each ER chunk get telemetry (most of these will be perigee passes)
     for er_start, er_stop in izip( er_starts.date, er_stops.date):
+        log.debug("checking for %s pass" % er_start)
+        if (DateTime(er_stop).secs - DateTime(er_start).secs > 86400 * 2):
+            raise ValueError("%s pass more than 48 hours" % er_start)
         er_year = DateTime(er_start).mxDateTime.year
         year_dir = os.path.join(pass_data_dir, "%s" % er_year )
         if not os.access(year_dir, os.R_OK):
@@ -157,7 +154,15 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
         if not os.access(pass_dir, os.R_OK):
             os.mkdir(pass_dir)
         made_timefile = os.path.exists(os.path.join(pass_dir, pass_time_file))
-        if redo is True or not made_timefile:
+        if made_timefile:
+            pass_done_match = False
+            import Ska.Table
+            pass_done = Ska.Table.read_ascii_table(os.path.join(pass_dir, pass_time_file))
+            if ((pass_done['obsid_datestart'] == er_start)
+                & (pass_done['obsid_datestop'] == er_stop)):
+                log.debug("%s times match" % pass_dir)
+                continue
+        if not made_timefile or redo:
             log.info("%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
                      % (TASK_SHARE, er_start, er_stop, pass_dir))
             Ska.Shell.bash_shell( "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
@@ -170,6 +175,11 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
             
     return pass_dirs
 
+class MissingDataError(Exception):
+    """
+    Special error for the case when there is missing telemetry
+    """
+    pass
 
 def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
     """
@@ -224,7 +234,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
 
     for slot in slots:
         if slot not in aca0.keys():
-            raise ValueError("missing 8x8 data for slot %d" % slot) 
+            raise MissingDataError("missing 8x8 data for slot %d" % slot) 
 
     # determine the time range contained by all the slots
     for slot in aca0.keys():
@@ -455,7 +465,7 @@ def per_pass_tasks( pass_tail_dir, opt):
         f.close()
 
     if not reduced_data.has_key('time'):
-        raise ValueError("Error parsing telem for %s" % pass_data_dir)
+        raise MissingDataError("Error parsing telem for %s" % pass_data_dir)
 
     telem_time_file = 'telem_time.htm'
     pass_web_dir = os.path.join(opt.web_dir, 'PASS_DATA', pass_tail_dir)
@@ -663,7 +673,7 @@ def month_stats_and_plots(start, opt, redo=False):
                                     temp_range[ttype]['max'] = telem[ttype].max()
 
 
-                    except ValueError:
+                    except MissingDataError:
                         print "skipping %s" % pass_dir
 
                 passlist.write("</TABLE>\n")
@@ -802,7 +812,7 @@ def main():
         try:
             pass_tail_dir = re.sub( "%s/" % PASS_DATA, '', pass_dir )
             telem = per_pass_tasks( pass_tail_dir, opt )
-        except ValueError:
+        except MissingDataError:
             print "skipping %s" % pass_dir
     month_stats_and_plots(start=last_month_start,
                           opt=opt)
