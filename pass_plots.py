@@ -115,6 +115,7 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
         tstop=DateTime(time.time(), format='unix')
 
     log.info("retrieve_perigee_telem(): Checking for current telemetry from %s"
+
              % tstart.date)
 
     pass_time_file = 'pass_times.txt'
@@ -130,6 +131,9 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
 
     er_starts_idx = 1 + np.flatnonzero(obsid_is_er[1:] - obsid_is_er[0:-1] == 1)
     er_stops_idx = np.flatnonzero(obsid_is_er[1:] - obsid_is_er[0:-1] == -1)
+    # we can't stop before we start
+    if er_stops_idx[0] == 0:
+        er_stops_idx = er_stops_idx[1:]
     if (np.max(er_starts_idx) > np.max(er_stops_idx)):
         if obsids[-1]['obsid'] > 40000:
             er_stops_idx = np.append(er_stops_idx, len(obsids) - 1)

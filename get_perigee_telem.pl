@@ -8,7 +8,7 @@ use Pod::Help qw( --help );
 use Carp;
 use Chandra::Time;
 use Ska::Run qw( run );
-
+use File::chdir;
 
 my %opt = ();
 
@@ -65,15 +65,18 @@ sub check_for_files{
     
     my $have_files = 1;
     for my $file (@{$files}){
-	print "checking ${dir}/${file}" if $opt{verbose};
-	if (-e "${dir}/${file}"){
-	    print " ... found \n" if $opt{verbose};
-	    next;
+        my $filename = $file->{filename};
+	print "checking ${dir}/${filename}" if $opt{verbose};
+	if (-e "${dir}/${filename}"){
+            my $filesize = -s "${dir}/${filename}";
+            if ($filesize == $file->{size}){
+                print " ... found \n" if $opt{verbose};
+                next;
+            }
 	}
 	else{
 	    print " ... missing \n" if $opt{verbose};
 	    $have_files = 0;
-	    last;
 	}
     }
     return $have_files;
@@ -102,8 +105,10 @@ BROWSE
 	    $matching = 1;
 	    next;
 	}
-	if (($matching) and  ($line =~ /(\w*\.fits(\.gz)?).*/)){
-	    push @files, $1;
+	if (($matching) and  ($line =~ /(\w*\.fits(\.gz)?)\s+(\d+).*/)){
+	    push @files, {filename => $1,
+                          size => $3};
+
 	}
     }
     return \@files;
@@ -112,15 +117,15 @@ BROWSE
 sub fetch_archive_files{
     my ($dir, $tstart, $tstop, $product, $glob) = @_;
 
-    my $CWD = cwd;
+    local $CWD = $dir;
+    # let's just chuck 'em first
+    unlink(glob($glob));
 
     my $get = <<GET;
 loud
 tstart=$tstart
 tstop=$tstop
-cd $dir
 get $product
-cd $CWD
 GET
 
     my ($status, @lines) = 
