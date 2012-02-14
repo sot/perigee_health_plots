@@ -15,6 +15,7 @@ import json
 
 from Chandra.Time import DateTime
 from Ska.DBI import DBI
+import Ska.Table
 import Ska.Shell
 import Ska.report_ranges
 # Matplotlib setup
@@ -159,19 +160,19 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
             os.mkdir(pass_dir)
         made_timefile = os.path.exists(os.path.join(pass_dir, pass_time_file))
         if made_timefile:
-            pass_done_match = False
-            import Ska.Table
             pass_done = Ska.Table.read_ascii_table(os.path.join(pass_dir, pass_time_file))
             if ((pass_done['obsid_datestart'] == er_start)
                 & (pass_done['obsid_datestop'] == er_stop)):
                 log.debug("%s times match" % pass_dir)
                 continue
+            else:
+                redo = True
         if not made_timefile or redo:
             log.info("%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
                      % (TASK_SHARE, er_start, er_stop, pass_dir))
             Ska.Shell.bash_shell( "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
                                   % (TASK_SHARE, er_start, er_stop, pass_dir) )
-        #print pass_dir
+
             f = open(os.path.join(pass_dir, pass_time_file), 'w')
             f.write("obsid_datestart,obsid_datestop\n")
             f.write("%s,%s\n" % (er_start, er_stop))
@@ -212,6 +213,8 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
     pass_times = Ska.Table.read_ascii_table( os.path.join( pass_dir, pass_time_file))
     ccdm_files = sorted(glob.glob(os.path.join( pass_dir, "ccdm*")))
 
+    if not len(ccdm_files):
+        raise MissingDataError("missing ccdm data for pass %s" % pass_dir)
     for ccdm_file in ccdm_files:
         ccdm_table = Ska.Table.read_fits_table(ccdm_file)
         try:
