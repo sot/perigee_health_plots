@@ -166,6 +166,7 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
                 log.debug("%s times match" % pass_dir)
                 continue
             else:
+                log.info("pass %s exists but needs updating" % er_start)
                 redo = True
         if not made_timefile or redo:
             log.info("%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
