@@ -149,7 +149,8 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
     for er_start, er_stop in izip( er_starts.date, er_stops.date):
         log.debug("checking for %s pass" % er_start)
         if (DateTime(er_stop).secs - DateTime(er_start).secs > 86400 * 2):
-            raise ValueError("%s pass more than 48 hours" % er_start)
+            log.warn("Skipping %s pass, more than 48 hours long" % er_start)
+            continue
         er_year = DateTime(er_start).mxDateTime.year
         year_dir = os.path.join(pass_data_dir, "%s" % er_year )
         if not os.access(year_dir, os.R_OK):
