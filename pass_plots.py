@@ -231,7 +231,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
         aca_files = sorted(glob.glob(os.path.join( pass_dir, "aca*_%s_*" % slot )))
         for aca_file in aca_files:
             aca_table = Ska.Table.read_fits_table(aca_file)
-            if aca_table.IMGRAW.shape[1] == 64:
+            if aca_table.IMGRAW[0].shape == (8, 8):
                 if aca0.has_key(slot):
                     aca0[slot] = np.append( aca0[slot], aca_table )
                 else:
@@ -279,7 +279,7 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
             ok[slot] = np.flatnonzero(
                 ( aca0[slot]['TIME'] >= range_start)
                 & ( aca0[slot]['TIME'] < range_end)
-                & ( aca0[slot]['IMGRAW'].shape[1] == 64 )
+                & ( aca0[slot]['IMGRAW'][0].shape == (8,8) )
                 & ( aca0[slot]['QUALITY'] == 0 ))
             if len(ok[slot]) < min_len:
                 min_len = len(ok[slot])
