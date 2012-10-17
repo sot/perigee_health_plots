@@ -24,6 +24,7 @@ import matplotlib
 if __name__ == '__main__':
     matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.rcParams['lines.markeredgewidth'] = 0
 from Ska.Matplotlib import cxctime2plotdate, plot_cxctime
 import characteristics
 
