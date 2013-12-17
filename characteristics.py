@@ -26,8 +26,8 @@ telem_limits = {'ccd_temp': {'max': -14.0}}
 dac_plot = { 'ylim' : (460,515) }
 dacvsdtemp_plot = { 'ylim' : (460,515),
                       'xlim' : (37,40) }
-aca_temp_plot = { 'ylim' : (17,22) }
-ccd_temp_plot = { 'ylim' : (-20,-18) }
+aca_temp_plot = {'ylim': (20, 28)}
+ccd_temp_plot = {'ylim': (-19, -13)}
 
 
 
