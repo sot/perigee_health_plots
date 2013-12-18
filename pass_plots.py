@@ -31,14 +31,14 @@ import characteristics
 log = logging.getLogger()
 log.setLevel(logging.DEBUG)
 
-# emails...                                                                                      
+# emails...
 smtp_handler = logging.handlers.SMTPHandler('localhost',
                                            'aca@head.cfa.harvard.edu',
                                            'aca@head.cfa.harvard.edu',
                                            'perigee health mon')
 
 smtp_handler.setLevel(logging.WARN)
-log.addHandler(smtp_handler) 
+log.addHandler(smtp_handler)
 
 colors = characteristics.plot_colors
 pass_color_maker = cycle(colors)
@@ -62,7 +62,7 @@ TASK_SHARE = os.path.join(os.environ['SKA'], 'share', 'perigee_health_plots')
 #        django.conf.settings.configure()
 #    except RuntimeError, msg:
 #        print msg
-        
+
 jinja_env = jinja2.Environment(
     loader=jinja2.FileSystemLoader(os.path.join(TASK_SHARE, 'templates')))
 
@@ -95,18 +95,18 @@ def get_options():
     return opt, args
 
 
-def retrieve_perigee_telem(start='2009:100:00:00:00.000', 
+def retrieve_perigee_telem(start='2009:100:00:00:00.000',
                            stop=None,
                            pass_data_dir='.',
                            redo=False):
     """
     Retrieve perigee pass and other 8x8 image telemetry.
-    
+
     Telemetry is stored in directories named by datestart in the PASS_DATA directory.
-    The file pass_times.txt in each directory contains the time range that 
+    The file pass_times.txt in each directory contains the time range that
     has been queried for 8x8 image data
-    
-    :param start: Chandra.Time compatible time for beginning of range 
+
+    :param start: Chandra.Time compatible time for beginning of range
     :param stop: Chandra.time compatible time for end of range
     :rtype: list of updated directories
     """
@@ -123,10 +123,10 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
     pass_time_file = 'pass_times.txt'
     aca_db = DBI(dbi='sybase', server='sybase', user='aca_read', database='aca')
     obsids = aca_db.fetchall("""SELECT obsid,obsid_datestart,obsid_datestop
-                                from observations  
+                                from observations
                                 where obsid_datestart > '%s'
-                                and obsid_datestart < '%s'""" 
-                             % (tstart.date,tstop.date));
+                                and obsid_datestart < '%s'"""
+                             % (tstart.date,tstop.date))
 
     # find the ERs
     obsid_is_er = np.where(obsids['obsid'] > 40000, 1, 0)
@@ -171,16 +171,16 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
                 log.info("pass %s exists but needs updating" % er_start)
                 redo = True
         if not made_timefile or redo:
-            log.info("%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
+            log.info("%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
                      % (TASK_SHARE, er_start, er_stop, pass_dir))
-            Ska.Shell.bash_shell( "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'" 
+            Ska.Shell.bash_shell( "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
                                   % (TASK_SHARE, er_start, er_stop, pass_dir) )
 
             f = open(os.path.join(pass_dir, pass_time_file), 'w')
             f.write("obsid_datestart,obsid_datestop\n")
             f.write("%s,%s\n" % (er_start, er_stop))
             f.close()
-            
+
     return pass_dirs
 
 class MissingDataError(Exception):
@@ -191,18 +191,18 @@ class MissingDataError(Exception):
 
 def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
     """
-    Determine TEC DAC level and temperatures from available telemetry.  
+    Determine TEC DAC level and temperatures from available telemetry.
     Create telemetry structure.
-    
+
     For the supplied telem directory (pass_dir) read and concatenate the CCDM telemetry
     and the ACA0 telemetry (by slot).
-    
-    For each "time_interval" determine if the minimum number of telemetry samples 
+
+    For each "time_interval" determine if the minimum number of telemetry samples
     "min_samples" are supplied.
     Skip intervals which do not have the minimum number of samples in all slots.
 
     :param pass_dir: directory containing CCDM and ACA0 telemetry
-    :param min_samples: int, minimum number of samples to be contained in time_interval 
+    :param min_samples: int, minimum number of samples to be contained in time_interval
     :param time_interval: int seconds, telemetry "chunking" interval
     :returns: reduced telemetry
     :rtype: dict
@@ -238,13 +238,13 @@ def perigee_parse( pass_dir, min_samples=5, time_interval=20 ):
                 else:
                     aca0[slot] = aca_table
 
- 
+
     mintime = pass_times[0].obsid_datestart
     maxtime = pass_times[0].obsid_datestop
 
     for slot in slots:
         if slot not in aca0.keys():
-            raise MissingDataError("missing 8x8 data for slot %d" % slot) 
+            raise MissingDataError("missing 8x8 data for slot %d" % slot)
 
     # determine the time range contained by all the slots
     for slot in aca0.keys():
@@ -358,7 +358,7 @@ def plot_pass( telem, pass_dir, url, redo=False ):
     """
 
 
-    filelist = ('dacvsdtemp.png', 'dac.png', 'aca_temp.png', 'ccd_temp.png', 
+    filelist = ('dacvsdtemp.png', 'dac.png', 'aca_temp.png', 'ccd_temp.png',
                 'obslist.htm', 'index.html')
     missing = 0
     for file in filelist:
@@ -373,7 +373,7 @@ def plot_pass( telem, pass_dir, url, redo=False ):
     tfig['aca_temp'] = plt.figure(num=3,figsize=(4,3))
     tfig['ccd_temp'] = plt.figure(num=4,figsize=(4,3))
 
-    obslist = open(os.path.join(pass_dir, 'obslist.htm'),'w')    
+    obslist = open(os.path.join(pass_dir, 'obslist.htm'),'w')
     obslist.write("<TABLE BORDER=1><TR><TH>obsid</TH><TH></TH><TH>start</TH><TH>stop</TH></TR>\n")
     uniq_obs = np.unique(telem['obsids'])
 
@@ -381,37 +381,37 @@ def plot_pass( telem, pass_dir, url, redo=False ):
     for obsid in uniq_obs[::-1]:
         obsmatch = np.flatnonzero( telem['obsids'] == obsid )
         curr_color = obsid_color_maker.next()
-        obslist.write("<TR><TD>%d</TD><TD BGCOLOR=\"%s\">&nbsp;</TD><TD>%s</TD><TD>%s</TD></TR>\n" 
-                      % (obsid, 
+        obslist.write("<TR><TD>%d</TD><TD BGCOLOR=\"%s\">&nbsp;</TD><TD>%s</TD><TD>%s</TD></TR>\n"
+                      % (obsid,
                          curr_color,
                          DateTime(telem['time'][obsmatch[0]]).date,
                          DateTime(telem['time'][obsmatch[-1]]).date
                          ))
         plt.figure(tfig['dacvsdtemp'].number)
         rand_obs_dac = telem['dac'][obsmatch] + np.random.random(len(obsmatch))-.5
-        plt.plot( telem['aca_temp'][obsmatch] - telem['ccd_temp'][obsmatch], 
+        plt.plot( telem['aca_temp'][obsmatch] - telem['ccd_temp'][obsmatch],
               rand_obs_dac,
-              color=curr_color, 
+              color=curr_color,
               marker='.', markersize=1)
-        plt.figure(tfig['dac'].number) 
-        plot_cxctime( telem['time'][obsmatch], 
+        plt.figure(tfig['dac'].number)
+        plot_cxctime( telem['time'][obsmatch],
                       rand_obs_dac,
                       color=curr_color, marker='.')
         plt.figure(tfig['aca_temp'].number)
-        plot_cxctime( telem['time'][obsmatch], 
-                      telem['aca_temp'][obsmatch], 
+        plot_cxctime( telem['time'][obsmatch],
+                      telem['aca_temp'][obsmatch],
                       color=curr_color, marker='.')
         plt.figure(tfig['ccd_temp'].number)
-        plot_cxctime( telem['time'][obsmatch], 
+        plot_cxctime( telem['time'][obsmatch],
                       telem['ccd_temp'][obsmatch],
                       color=curr_color, marker='.')
 
     obslist.write("</TABLE>\n")
     obslist.close()
 
-    aca_temp_lims = get_telem_range(telem['aca_temp'])        
+    aca_temp_lims = get_telem_range(telem['aca_temp'])
     ccd_temp_lims = get_telem_range(telem['ccd_temp'])
-    
+
     h = plt.figure(tfig['dacvsdtemp'].number)
     plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
     plt.ylabel('TEC DAC Control Level')
@@ -448,14 +448,14 @@ def plot_pass( telem, pass_dir, url, redo=False ):
 
     plt.savefig(os.path.join(pass_dir, 'ccd_temp.png'))
     plt.close(h)
-    
+
     pass_index_template = jinja_env.get_template('pass_index_template.html')
     pass_index_page = pass_index_template.render(task={'url' : url})
     pass_fh = open(os.path.join(pass_dir, 'index.html'), 'w')
     pass_fh.write(pass_index_page)
     pass_fh.close()
 
-    
+
 
 
 def per_pass_tasks( pass_tail_dir, opt):
@@ -485,12 +485,12 @@ def per_pass_tasks( pass_tail_dir, opt):
         tf = open(os.path.join(pass_web_dir, telem_time_file), 'w')
         tf.write("<TABLE BORDER=1>\n")
         tf.write("<TR><TH>datestart</TH><TH>datestop</TH></TR>\n")
-        tf.write("<TR><TD>%s</TD><TD>%s</TD></TR>\n" % 
-                 ( DateTime(reduced_data['time'].min()).date, 
+        tf.write("<TR><TD>%s</TD><TD>%s</TD></TR>\n" %
+                 ( DateTime(reduced_data['time'].min()).date,
                    DateTime(reduced_data['time'].max()).date))
         tf.write("</TABLE>\n")
         tf.close()
-    
+
 
     # cut out nonsense bad data
     types = ['time', 'aca_temp', 'ccd_temp', 'dac', 'obsids']
@@ -500,18 +500,18 @@ def per_pass_tasks( pass_tail_dir, opt):
             goods = np.flatnonzero(reduced_data[type] <= filters[type]['max'])
             maxbads = np.flatnonzero(reduced_data[type] > filters[type]['max'])
             for bad in maxbads:
-                log.info("filtering %s,%s,%6.2f" % (  
+                log.info("filtering %s,%s,%6.2f" % (
                                                DateTime(reduced_data['time'][bad]).date,
                                                type,
                                                reduced_data[type][bad] ))
-                
+
             for ttype in types:
                 reduced_data[ttype] = reduced_data[ttype][goods]
         if filters[type].has_key('min'):
             goods = np.flatnonzero(reduced_data[type] >= filters[type]['min'])
             minbads = np.flatnonzero(reduced_data[type] < filters[type]['min'])
             for bad in minbads:
-                log.info("filtering %s,%s,%6.2f" % ( 
+                log.info("filtering %s,%s,%6.2f" % (
                                                DateTime(reduced_data['time'][bad]).date,
                                                type,
                                                reduced_data[type][bad] ))
@@ -524,9 +524,9 @@ def per_pass_tasks( pass_tail_dir, opt):
     pass_url = opt.web_server + os.path.join(opt.url_dir, 'PASS_DATA', pass_tail_dir)
     for type in limits.keys():
         if limits[type].has_key('max'):
-            if ((max(reduced_data[type]) > limits[type]['max']) 
+            if ((max(reduced_data[type]) > limits[type]['max'])
                 and not os.path.exists(os.path.join(pass_data_dir, 'warned.txt'))):
-                warn_text = ("Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s" % (  
+                warn_text = ("Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s" % (
                         type,
                         max(reduced_data[type]),
                         limits[type]['max'],
@@ -539,7 +539,7 @@ def per_pass_tasks( pass_tail_dir, opt):
         if limits[type].has_key('min'):
             if ((min(reduced_data[type]) < limits[type]['min'])
                 and not os.path.exists(os.path.join(pass_data_dir, 'warned.txt'))):
-                warn_text = ("Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s" % (  
+                warn_text = ("Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s" % (
                         type,
                         min(reduced_data[type]),
                         limits[type]['min'],
@@ -549,7 +549,7 @@ def per_pass_tasks( pass_tail_dir, opt):
                 warn_file.write(warn_text)
                 warn_file.close()
 
-    plot_pass(reduced_data, pass_web_dir, url=opt.url_dir)                
+    plot_pass(reduced_data, pass_web_dir, url=opt.url_dir)
     save_pass(reduced_data, pass_data_dir)
 
     return reduced_data
@@ -564,7 +564,7 @@ def save_pass(telem, pass_data_dir):
     rep_file = open(os.path.join(pass_data_dir, 'pass.json'), 'w')
     rep_file.write(json.dumps(pass_save, sort_keys=True, indent=4))
     rep_file.close()
-                   
+
 
 #def pass_stats_and_plots():
 #    """
@@ -577,7 +577,7 @@ def save_pass(telem, pass_data_dir):
 
 
 def month_stats_and_plots(start, opt, redo=False):
-    """ 
+    """
     Make summary plots and statistics reports for months
 
     :param lookbackdays: number of days to go back to define first month to rebuild
@@ -607,7 +607,7 @@ def month_stats_and_plots(start, opt, redo=False):
 
             month_range = Ska.report_ranges.timerange(month)
             log.info('working in %s' % month)
-            toptable.write("<TD><A HREF=\"%s/SUMMARY_DATA/%s\">%s</TD>" 
+            toptable.write("<TD><A HREF=\"%s/SUMMARY_DATA/%s\">%s</TD>"
                            % (opt.url_dir, month, month))
 
             month_data_dir = os.path.join(opt.data_dir, 'SUMMARY_DATA', month)
@@ -620,7 +620,7 @@ def month_stats_and_plots(start, opt, redo=False):
             pf = open( os.path.join(month_data_dir, pass_file), 'w')
             for pass_dir in months[month]:
                 pf.write("%s\n" % pass_dir)
-            pf.close()    
+            pf.close()
 
             # only bother with recent passes unless we are in remake mode
             if (month_range['start'] >= start) or (redo == True):
@@ -632,7 +632,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 tfig['ccd_temp'] = plt.figure(num=8,figsize=(4,3))
                 tfig['ccd_month'] = plt.figure(num=9,figsize=(8,3))
 
-                passlist = open(os.path.join(month_web_dir, 'passlist.htm'),'w')    
+                passlist = open(os.path.join(month_web_dir, 'passlist.htm'),'w')
                 passlist.write("<TABLE>\n")
                 passdates = []
                 temp_range = dict(aca_temp=dict(max=None,
@@ -651,27 +651,27 @@ def month_stats_and_plots(start, opt, redo=False):
                         pass_tail_dir = re.sub( "%s/" % PASS_DATA, '', pass_dir )
                         telem = per_pass_tasks( pass_tail_dir, opt )
                         curr_color = pass_color_maker.next()
-                        passlist.write("<TR><TD><A HREF=\"%s/PASS_DATA/%d/%s\">%s</A></TD><TD BGCOLOR=\"%s\">&nbsp;</TD></TR>\n" 
+                        passlist.write("<TR><TD><A HREF=\"%s/PASS_DATA/%d/%s\">%s</A></TD><TD BGCOLOR=\"%s\">&nbsp;</TD></TR>\n"
                                        % ( opt.url_dir,
                                            mxpassdate.year,
                                            passdate,
-                                           DateTime(telem['time'].min()).date, 
+                                           DateTime(telem['time'].min()).date,
                                            curr_color))
                         plt.figure(tfig['dacvsdtemp'].number)
                         # add randomization to dac
                         rand_dac = telem['dac'] + np.random.random(len(telem['dac']))-.5
-                        plt.plot( telem['aca_temp']- telem['ccd_temp'], 
+                        plt.plot( telem['aca_temp']- telem['ccd_temp'],
                                   rand_dac,
                                   color=curr_color, marker='.', markersize=.5)
                         for ttype in ('aca_temp', 'ccd_temp', 'dac'):
                             plt.figure(tfig[ttype].number)
-                            plot_cxctime( [ DateTime(passdate).secs, DateTime(passdate).secs], 
+                            plot_cxctime( [ DateTime(passdate).secs, DateTime(passdate).secs],
                                           [ telem[ttype].mean(), telem[ttype].max() ],
                                           color=curr_color, linestyle='-', marker='^')
-                            plot_cxctime( [ DateTime(passdate).secs, DateTime(passdate).secs], 
+                            plot_cxctime( [ DateTime(passdate).secs, DateTime(passdate).secs],
                                           [ telem[ttype].mean(), telem[ttype].min() ],
                                           color=curr_color, linestyle='-', marker='v')
-                            plot_cxctime( [ DateTime(passdate).secs ], 
+                            plot_cxctime( [ DateTime(passdate).secs ],
                                           [ telem[ttype].mean() ],
                                           color=curr_color, marker='.', markersize=10)
                             if re.search('temp', ttype):
@@ -750,7 +750,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 goods = np.flatnonzero(goodfilt)
                 bads = np.flatnonzero(goodfilt == False)
                 for bad in bads:
-                            log.info("filtering %s,%s,%6.2f" % (  
+                            log.info("filtering %s,%s,%6.2f" % (
                                 DateTime(telem.times[bad]).date,
                                 'AACCCDPT',
                                 ccd_temps[bad] ))
@@ -769,7 +769,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 next_string = '%d-%s' % (next_month['year'], next_month['subid'])
                 prev_month = Ska.report_ranges.get_prev(month_range)
                 prev_string = '%d-%s' % (prev_month['year'], prev_month['subid'])
-                
+
                 month_index = os.path.join(month_web_dir, 'index.html')
                 log.info("making %s" % month_index)
                 month_template = jinja_env.get_template('month_index_template.html')
@@ -782,7 +782,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 month_fh.close()
 
         toptable.write("</TR>\n")
-    
+
     toptable.write("</TABLE>\n")
     toptable.close()
 
@@ -826,7 +826,7 @@ def main():
             print "skipping %s" % pass_dir
     month_stats_and_plots(start=last_month_start,
                           opt=opt)
-        
+
 
 if __name__ == '__main__':
     main()
