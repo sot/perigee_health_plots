@@ -178,18 +178,21 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
                 log.info("pass %s exists but needs updating" % er_start)
                 redo = True
         if not made_timefile or redo:
-            log.info(
-                "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
-                % (TASK_SHARE, er_start, er_stop, pass_dir))
-            Ska.Shell.bash_shell(
-                "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
-                % (TASK_SHARE, er_start, er_stop, pass_dir))
+            try:
+                log.info(
+                    "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
+                    % (TASK_SHARE, er_start, er_stop, pass_dir))
+                Ska.Shell.bash_shell(
+                    "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
+                    % (TASK_SHARE, er_start, er_stop, pass_dir))
 
-            f = open(os.path.join(pass_dir, pass_time_file), 'w')
-            f.write("obsid_datestart,obsid_datestop\n")
-            f.write("%s,%s\n" % (er_start, er_stop))
-            f.close()
-
+                f = open(os.path.join(pass_dir, pass_time_file), 'w')
+                f.write("obsid_datestart,obsid_datestop\n")
+                f.write("%s,%s\n" % (er_start, er_stop))
+                f.close()
+            except Ska.Shell.ShellError:
+                log.info("Error on {} ... skipping".format(pass_dir))
+                continue
     return pass_dirs
 
 
@@ -222,6 +225,8 @@ def perigee_parse(pass_dir, min_samples=5, time_interval=20):
     log.info("perigee_parse(): parsing %s" % pass_dir)
 
     pass_time_file = 'pass_times.txt'
+    if not os.path.exists(os.path.join(pass_dir, pass_time_file)):
+        raise MissingDataError("Missing telem for pass %s" % pass_dir)
     pass_times = Ska.Table.read_ascii_table(os.path.join(pass_dir,
                                                          pass_time_file))
     ccdm_files = sorted(glob.glob(os.path.join(pass_dir, "ccdm*")))
