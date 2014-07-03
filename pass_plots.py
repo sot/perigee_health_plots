@@ -27,6 +27,9 @@ import Ska.Shell
 import Ska.report_ranges
 from Ska.engarchive import fetch
 from Ska.Matplotlib import plot_cxctime
+from Chandra.cmd_states import get_cmd_states
+import chandra_models
+import xija
 
 import characteristics
 
@@ -95,6 +98,24 @@ def get_options():
                       default=None)
     (opt, args) = parser.parse_args()
     return opt, args
+
+
+def aca_ccd_model(tstart, tstop, init_temp):
+    cmd_states = get_cmd_states.fetch_states(tstart,
+                                             tstop,
+                                             vals=['obsid',
+                                                   'pitch',
+                                                   'q1', 'q2', 'q3', 'q4'])
+    model_spec = chandra_models.get_xija_model_file('aca')
+    model = xija.ThermalModel('aca', start=tstart, stop=tstop, model_spec=model_spec)
+    times = np.array([cmd_states['tstart'], cmd_states['tstop']])
+    model.comp['pitch'].set_data(cmd_states['pitch'], times)
+    model.comp['eclipse'].set_data(False)
+    model.comp['aca0'].set_data(init_temp, tstart)
+    model.comp['aacccdpt'].set_data(init_temp, tstart)
+    model.make()
+    model.calc()
+    return model
 
 
 def retrieve_perigee_telem(start='2009:100:00:00:00.000',
@@ -798,13 +819,22 @@ def month_stats_and_plots(start, opt, redo=False):
                              (DateTime(telem.times[bad]).date,
                               'AACCCDPT',
                               ccd_temps[bad]))
+                # Filter in place
                 ccd_temps = ccd_temps[goods]
                 ccd_times = telem.times[goods]
+                model_ccd_temp = aca_ccd_model(DateTime(passdates[0]).secs - 86400,
+                                               DateTime(passdates[-1]).secs + 86400,
+                                               np.mean(ccd_temps[0:10]))
                 plot_cxctime(ccd_times, ccd_temps, 'k.')
+                plot_cxctime(model_ccd_temp.times,
+                             model_ccd_temp.comp['aacccdpt'].mvals,
+                             'b.', markersize=2)
                 plt.ylim(min(characteristics.ccd_temp_plot['ylim'][0],
-                             temp_range['ccd_temp']['min']),
+                             temp_range['ccd_temp']['min'],
+                             model_ccd_temp.comp['aacccdpt'].mvals.min()),
                          max(characteristics.ccd_temp_plot['ylim'][1],
-                             temp_range['ccd_temp']['max']))
+                             temp_range['ccd_temp']['max'],
+                             model_ccd_temp.comp['aacccdpt'].mvals.max()))
                 plt.ylabel('CCD Temp (C)')
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
                 plt.close(f)
