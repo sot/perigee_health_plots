@@ -6,6 +6,7 @@ import time
 import cPickle
 import re
 import numpy as np
+import numpy.ma as ma
 import logging
 from logging.handlers import SMTPHandler
 from itertools import izip, cycle
@@ -26,6 +27,7 @@ import Ska.Table
 import Ska.Shell
 import Ska.report_ranges
 from Ska.engarchive import fetch
+from mica.archive import aca_hdr3
 from Ska.Matplotlib import plot_cxctime
 from Chandra.cmd_states import get_cmd_states
 import chandra_models
@@ -149,7 +151,7 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
     obsids = aca_db.fetchall("""SELECT obsid,obsid_datestart,obsid_datestop
                                 from observations
                                 where obsid_datestart > '%s'
-                                and obsid_datestart < '%s'"""
+                                and obsid_datestart < '%s' order by obsid_datestart"""
                              % (tstart.date, tstop.date))
 
     # find the ERs
@@ -160,7 +162,7 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
     er_stops_idx = np.flatnonzero(
         (obsid_is_er[1:] - obsid_is_er[0:-1]) == -1)
     # we can't stop before we start
-    if er_stops_idx[0] == 0:
+    if er_stops_idx[0] < er_starts_idx[0]:
         er_stops_idx = er_stops_idx[1:]
     if (np.max(er_starts_idx) > np.max(er_stops_idx)):
         if obsids[-1]['obsid'] > 40000:
@@ -198,21 +200,10 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
                 log.info("pass %s exists but needs updating" % er_start)
                 redo = True
         if not made_timefile or redo:
-            try:
-                log.info(
-                    "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
-                    % (TASK_SHARE, er_start, er_stop, pass_dir))
-                Ska.Shell.bash_shell(
-                    "%s/get_perigee_telem.pl --tstart '%s' --tstop '%s' --dir '%s'"
-                    % (TASK_SHARE, er_start, er_stop, pass_dir))
-
-                f = open(os.path.join(pass_dir, pass_time_file), 'w')
-                f.write("obsid_datestart,obsid_datestop\n")
-                f.write("%s,%s\n" % (er_start, er_stop))
-                f.close()
-            except Ska.Shell.ShellError:
-                log.info("Error on {} ... skipping".format(pass_dir))
-                continue
+            f = open(os.path.join(pass_dir, pass_time_file), 'w')
+            f.write("obsid_datestart,obsid_datestop\n")
+            f.write("%s,%s\n" % (er_start, er_stop))
+            f.close()
     return pass_dirs
 
 
@@ -249,123 +240,16 @@ def perigee_parse(pass_dir, min_samples=5, time_interval=20):
         raise MissingDataError("Missing telem for pass %s" % pass_dir)
     pass_times = Ska.Table.read_ascii_table(os.path.join(pass_dir,
                                                          pass_time_file))
-    ccdm_files = sorted(glob.glob(os.path.join(pass_dir, "ccdm*")))
-
-    if not len(ccdm_files):
-        raise MissingDataError("missing ccdm data for pass %s" % pass_dir)
-    for ccdm_file in ccdm_files:
-        ccdm_table = Ska.Table.read_fits_table(ccdm_file)
-        try:
-            ccdm = np.append(ccdm, ccdm_table)
-        except NameError:
-            ccdm = ccdm_table
-
-    slots = (0, 1, 2, 6, 7)
-    aca0 = {}
-    for slot in slots:
-        aca_files = sorted(glob.glob(
-                os.path.join(pass_dir, "aca*_%s_*" % slot)))
-        for aca_file in aca_files:
-            aca_table = Ska.Table.read_fits_table(aca_file)
-            if aca_table.IMGRAW[0].shape == (8, 8):
-                if slot in aca0:
-                    aca0[slot] = np.append(aca0[slot], aca_table)
-                else:
-                    aca0[slot] = aca_table
-
     mintime = pass_times[0].obsid_datestart
     maxtime = pass_times[0].obsid_datestop
 
-    for slot in slots:
-        if slot not in aca0.keys():
-            raise MissingDataError("missing 8x8 data for slot %d" % slot)
+    hdr3 = aca_hdr3.MSIDset(['dac', 'ccd_temp', 'aca_temp'],
+                            mintime, maxtime)
 
-    # determine the time range contained by all the slots
-    for slot in aca0.keys():
-        minslottime = DateTime(aca0[slot]['TIME'].min()).date
-        maxslottime = DateTime(aca0[slot]['TIME'].max()).date
-        if minslottime > mintime:
-            mintime = minslottime
-        if maxslottime < maxtime:
-            maxtime = maxslottime
-
-    # calculate the number of intervals for the time range
-    n_intervals = int((DateTime(maxtime).secs - DateTime(mintime).secs)
-                      / time_interval)
-
-    result = {}
-    # throw some stuff into a hash to have it handy later if needed
-    result['info'] = {'sample_interval_in_secs': time_interval,
-                      'datestart': mintime,
-                      'datestop': maxtime,
-                      'min_required_samples': min_samples,
-                      'number_of_intervals': n_intervals
-                      }
-
-    log.debug(result)
-
-    parsed_telem = {}
-    for t_idx in range(0, n_intervals):
-        range_start = DateTime(mintime).secs + (t_idx * time_interval)
-        range_end = range_start + time_interval
-        ok = {}
-        min_len = min_samples
-        for slot in aca0.keys():
-            ok[slot] = np.flatnonzero(
-                (aca0[slot]['TIME'] >= range_start)
-                & (aca0[slot]['TIME'] < range_end)
-                & (aca0[slot]['IMGRAW'][0].shape == (8, 8))
-                & (aca0[slot]['QUALITY'] == 0))
-            if len(ok[slot]) < min_len:
-                min_len = len(ok[slot])
-
-        # if we have at least the minimum number of samples
-        if min_len == min_samples:
-            ok_ccdm = np.flatnonzero(
-                (ccdm['TIME'] >= range_start)
-                & (ccdm['TIME'] < range_end))
-
-            products = {}
-            obsids = ccdm[ok_ccdm]['COBSRQID']
-            if len(obsids) == min_samples:
-                products['obsids'] = obsids
-            else:
-                if len(obsids) < min_samples:
-                    # fudge it if missing ccdm data
-                    products['obsids'] = np.ones(min_samples) * obsids[0]
-                else:
-                    products['obsids'] = obsids[0:min_samples + 1]
-
-            products['dac'] = (aca0[7]['HD3TLM76'][ok[7]] * 256.
-                               + aca0[7]['HD3TLM77'][ok[7]])
-            products['time'] = aca0[7]['TIME'][ok[7]]
-            #products['h066'] = aca0[0]['HD3TLM66'] * 256 + aca0[0]['HD3TLM67']
-            #products['h072'] = aca0[0]['HD3TLM72'] * 256 + aca0[0]['HD3TLM73']
-            #products['h074'] = aca0[0]['HD3TLM74'] * 256 + aca0[0]['HD3TLM75']
-            #products['h174'] = aca0[1]['HD3TLM74'] * 256 + aca0[1]['HD3TLM75']
-            #products['h176'] = aca0[1]['HD3TLM76'] * 256 + aca0[1]['HD3TLM77']
-            #products['h262'] = aca0[2]['HD3TLM62'] * 256 + aca0[2]['HD3TLM63']
-            #products['h264'] = aca0[2]['HD3TLM64'] * 256 + aca0[2]['HD3TLM65']
-            #products['h266'] = aca0[2]['HD3TLM66'] * 256 + aca0[2]['HD3TLM67']
-            #products['h272'] = aca0[2]['HD3TLM72'] * 256 + aca0[2]['HD3TLM73']
-            #products['h274'] = aca0[2]['HD3TLM74'] * 256 + aca0[2]['HD3TLM75']
-            #products['h276'] = aca0[2]['HD3TLM76'] * 256 + aca0[2]['HD3TLM77']
-            products['aca_temp'] = (aca0[7]['HD3TLM73'][ok[7]] * (1 / 256.)
-                                    + aca0[7]['HD3TLM72'][ok[7]])
-            products['ccd_temp'] = (((aca0[6]['HD3TLM76'][ok[6]] * 256.)
-                                     + (aca0[6]['HD3TLM77'][ok[6]] - 65536.))
-                                    / 100.)
-            products['temphous'] = aca0[0][ok[0]]['TEMPHOUS']
-            products['tempprim'] = aca0[0][ok[0]]['TEMPPRIM']
-            products['tempsec'] = aca0[0][ok[0]]['TEMPSEC']
-            products['tempccd'] = aca0[0][ok[0]]['TEMPCCD']
-
-            for prod_type in products.keys():
-                try:
-                    parsed_telem[prod_type] = np.append(
-                        parsed_telem[prod_type], products[prod_type])
-                except KeyError:
-                    parsed_telem[prod_type] = products[prod_type]
+    parsed_telem = {'obsid': fetch.MSID('COBSRQID', mintime, maxtime),
+                    'dac': hdr3['dac'],
+                    'aca_temp': hdr3['aca_temp'],
+                    'ccd_temp': hdr3['ccd_temp']}
 
     return parsed_telem
 
@@ -414,45 +298,52 @@ def plot_pass(telem, pass_dir, url, redo=False):
     obslist.write(
         "<TABLE BORDER=1><TR><TH>obsid</TH><TH></TH>"
         "<TH>start</TH><TH>stop</TH></TR>\n")
-    uniq_obs = np.unique(telem['obsids'])
+    uniq_obs = np.unique(telem['obsid'].vals)
 
     # in reverse order for the ER table to look right
     for obsid in uniq_obs[::-1]:
-        obsmatch = np.flatnonzero(telem['obsids'] == obsid)
+        obsmatch = np.flatnonzero(telem['obsid'].vals == obsid)
         curr_color = obsid_color_maker.next()
+        tstart = telem['obsid'].times[obsmatch][0]
+        tstop = telem['obsid'].times[obsmatch][-1]
+        time_idx = (telem['dac'].times >= tstart) & (telem['dac'].times <= tstop)
+        if not np.any(time_idx):
+            continue
         obslist.write(
             "<TR><TD>%d</TD><TD BGCOLOR=\"%s\">&nbsp;</TD>"
             "<TD>%s</TD><TD>%s</TD></TR>\n"
             % (obsid,
                curr_color,
-               DateTime(telem['time'][obsmatch[0]]).date,
-               DateTime(telem['time'][obsmatch[-1]]).date
+               DateTime(tstart).date,
+               DateTime(tstop).date,
                ))
+
+
         plt.figure(tfig['dacvsdtemp'].number)
-        rand_obs_dac = (telem['dac'][obsmatch]
-                        + np.random.random(len(obsmatch)) - .5)
-        plt.plot(telem['aca_temp'][obsmatch] - telem['ccd_temp'][obsmatch],
+        rand_obs_dac = (telem['dac'].vals[time_idx]
+                        + np.random.random(len(telem['dac'].vals[time_idx])) - .5)
+        plt.plot(telem['aca_temp'].vals[time_idx] - telem['ccd_temp'].vals[time_idx],
                  rand_obs_dac,
                  color=curr_color,
                  marker='.', markersize=1)
         plt.figure(tfig['dac'].number)
-        plot_cxctime(telem['time'][obsmatch],
+        plot_cxctime(telem['dac'].times[time_idx],
                      rand_obs_dac,
                      color=curr_color, marker='.')
         plt.figure(tfig['aca_temp'].number)
-        plot_cxctime(telem['time'][obsmatch],
-                     telem['aca_temp'][obsmatch],
+        plot_cxctime(telem['aca_temp'].times[time_idx],
+                     telem['aca_temp'].vals[time_idx],
                      color=curr_color, marker='.')
         plt.figure(tfig['ccd_temp'].number)
-        plot_cxctime(telem['time'][obsmatch],
-                     telem['ccd_temp'][obsmatch],
+        plot_cxctime(telem['ccd_temp'].times[time_idx],
+                     telem['ccd_temp'].vals[time_idx],
                      color=curr_color, marker='.')
 
     obslist.write("</TABLE>\n")
     obslist.close()
 
-    aca_temp_lims = get_telem_range(telem['aca_temp'])
-    ccd_temp_lims = get_telem_range(telem['ccd_temp'])
+    aca_temp_lims = get_telem_range(telem['aca_temp'].vals)
+    ccd_temp_lims = get_telem_range(telem['ccd_temp'].vals)
 
     h = plt.figure(tfig['dacvsdtemp'].number)
     plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
@@ -504,18 +395,8 @@ def per_pass_tasks(pass_tail_dir, opt):
     pass_data_dir = os.path.join(opt.data_dir, 'PASS_DATA', pass_tail_dir)
     if not os.path.exists(pass_data_dir):
         os.makedirs(pass_data_dir)
-    if not os.path.exists(os.path.join(pass_data_dir, tfile)):
-        reduced_data = perigee_parse(pass_data_dir)
-        f = open(os.path.join(pass_data_dir, tfile), 'w')
-        cPickle.dump(reduced_data, f)
-        f.close()
-    else:
-        f = open(os.path.join(pass_data_dir, tfile), 'r')
-        reduced_data = cPickle.load(f)
-        f.close()
+    reduced_data = perigee_parse(pass_data_dir)
 
-    if 'time' not in reduced_data:
-        raise MissingDataError("Error parsing telem for %s" % pass_data_dir)
 
     telem_time_file = 'telem_time.htm'
     pass_web_dir = os.path.join(opt.web_dir, 'PASS_DATA', pass_tail_dir)
@@ -526,36 +407,36 @@ def per_pass_tasks(pass_tail_dir, opt):
         tf.write("<TABLE BORDER=1>\n")
         tf.write("<TR><TH>datestart</TH><TH>datestop</TH></TR>\n")
         tf.write("<TR><TD>%s</TD><TD>%s</TD></TR>\n" %
-                 (DateTime(reduced_data['time'].min()).date,
-                  DateTime(reduced_data['time'].max()).date))
+                 (DateTime(reduced_data['ccd_temp'].times[0]).date,
+                  DateTime(reduced_data['ccd_temp'].times[-1]).date))
         tf.write("</TABLE>\n")
         tf.close()
 
     # cut out nonsense bad data
-    types = ['time', 'aca_temp', 'ccd_temp', 'dac', 'obsids']
+    types = ['aca_temp', 'ccd_temp', 'dac']
     filters = characteristics.telem_chomp_limits
     for type in filters.keys():
         if 'max' in filters[type]:
-            goods = np.flatnonzero(reduced_data[type] <= filters[type]['max'])
-            maxbads = np.flatnonzero(reduced_data[type] > filters[type]['max'])
+            goods = np.flatnonzero(reduced_data[type].vals <= filters[type]['max'])
+            maxbads = np.flatnonzero(reduced_data[type].vals > filters[type]['max'])
             for bad in maxbads:
                 log.info("filtering %s,%s,%6.2f" %
-                         (DateTime(reduced_data['time'][bad]).date,
+                         (DateTime(reduced_data[type].times[bad]).date,
                           type,
-                          reduced_data[type][bad]))
+                          reduced_data[type].vals[bad]))
 
             for ttype in types:
-                reduced_data[ttype] = reduced_data[ttype][goods]
+                reduced_data[ttype].vals.mask[maxbads] = ma.masked
         if 'min' in filters[type]:
-            goods = np.flatnonzero(reduced_data[type] >= filters[type]['min'])
-            minbads = np.flatnonzero(reduced_data[type] < filters[type]['min'])
+            goods = np.flatnonzero(reduced_data[type].vals >= filters[type]['min'])
+            minbads = np.flatnonzero(reduced_data[type].vals < filters[type]['min'])
             for bad in minbads:
                 log.info("filtering %s,%s,%6.2f" %
-                         (DateTime(reduced_data['time'][bad]).date,
+                         (DateTime(reduced_data[type].times[bad]).date,
                           type,
-                          reduced_data[type][bad]))
+                          reduced_data[type].vals[bad]))
             for ttype in types:
-                reduced_data[ttype] = reduced_data[ttype][goods]
+                reduced_data[ttype].vals.mask[maxbads] = ma.masked
 
     # limit checks
     limits = characteristics.telem_limits
@@ -563,13 +444,13 @@ def per_pass_tasks(pass_tail_dir, opt):
         opt.url_dir, 'PASS_DATA', pass_tail_dir)
     for type in limits.keys():
         if 'max' in limits[type]:
-            if ((max(reduced_data[type]) > limits[type]['max'])
+            if ((max(reduced_data[type].vals) > limits[type]['max'])
                 and not os.path.exists(
                     os.path.join(pass_data_dir, 'warned.txt'))):
                 warn_text = (
                     "Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s"
                     % (type,
-                       max(reduced_data[type]),
+                       max(reduced_data[type].vals),
                        limits[type]['max'],
                        pass_url))
                 log.warn(warn_text)
@@ -579,13 +460,13 @@ def per_pass_tasks(pass_tail_dir, opt):
                 warn_file.close()
 
         if 'min' in limits[type]:
-            if ((min(reduced_data[type]) < limits[type]['min'])
+            if ((min(reduced_data[type].vals) < limits[type]['min'])
                 and not os.path.exists(
                     os.path.join(pass_data_dir, 'warned.txt'))):
                 warn_text = (
                     "Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s"
                     % (type,
-                       min(reduced_data[type]),
+                       min(reduced_data[type].vals),
                        limits[type]['min'],
                        pass_url))
                 log.warn(warn_text)
@@ -595,7 +476,7 @@ def per_pass_tasks(pass_tail_dir, opt):
                 warn_file.close()
 
     plot_pass(reduced_data, pass_web_dir, url=opt.url_dir)
-    save_pass(reduced_data, pass_data_dir)
+    #save_pass(reduced_data, pass_data_dir)
 
     return reduced_data
 
@@ -611,15 +492,6 @@ def save_pass(telem, pass_data_dir):
     rep_file.close()
 
 
-#def pass_stats_and_plots():
-#    """
-#    Make per-pass plots and statistic reports
-#    """
-#    pass_dirs = ['/proj/sot/ska/data/perigee_health_plots/PASS_DATA/2009/2009:190:00:21:16.226']
-#    for pass_dir in pass_dirs:
-#        telem = per_pass_tasks( pass_dir)
-#        plot_pass( telem, pass_dir )
-
 
 def month_stats_and_plots(start, opt, redo=False):
     """
@@ -630,6 +502,8 @@ def month_stats_and_plots(start, opt, redo=False):
 
     """
 
+    if not os.path.exists(opt.web_dir):
+        os.path.makedirs(opt.web_dir)
     toptable = open(os.path.join(opt.web_dir, 'toptable.htm'), 'w')
     toptable.write("<TABLE BORDER=1>\n")
     year_dirs = glob.glob(os.path.join(opt.data_dir, 'PASS_DATA', '*'))
@@ -706,43 +580,43 @@ def month_stats_and_plots(start, opt, redo=False):
                             % (opt.url_dir,
                                mxpassdate.year,
                                passdate,
-                               DateTime(telem['time'].min()).date,
+                               DateTime(telem['dac'].times[0]).date,
                                curr_color))
                         plt.figure(tfig['dacvsdtemp'].number)
                         # add randomization to dac
-                        rand_dac = (telem['dac']
-                                    + np.random.random(len(telem['dac']))
+                        rand_dac = (telem['dac'].vals
+                                    + np.random.random(len(telem['dac'].vals))
                                     - .5)
-                        plt.plot(telem['aca_temp'] - telem['ccd_temp'],
+                        plt.plot(telem['aca_temp'].vals - telem['ccd_temp'].vals,
                                  rand_dac,
                                  color=curr_color, marker='.', markersize=.5)
                         for ttype in ('aca_temp', 'ccd_temp', 'dac'):
                             plt.figure(tfig[ttype].number)
                             plot_cxctime([DateTime(passdate).secs,
                                           DateTime(passdate).secs],
-                                         [telem[ttype].mean(),
-                                          telem[ttype].max()],
+                                         [telem[ttype].vals.mean(),
+                                          telem[ttype].vals.max()],
                                          color=curr_color, linestyle='-',
                                          marker='^')
                             plot_cxctime([DateTime(passdate).secs,
                                           DateTime(passdate).secs],
-                                         [telem[ttype].mean(),
-                                          telem[ttype].min()],
+                                         [telem[ttype].vals.mean(),
+                                          telem[ttype].vals.min()],
                                          color=curr_color, linestyle='-',
                                          marker='v')
                             plot_cxctime([DateTime(passdate).secs],
-                                         [telem[ttype].mean()],
+                                         [telem[ttype].vals.mean()],
                                          color=curr_color, marker='.',
                                          markersize=10)
                             if re.search('temp', ttype):
                                 if (temp_range[ttype]['min'] is None
                                     or (temp_range[ttype]['min']
-                                        > telem[ttype].min())):
-                                    temp_range[ttype]['min'] = telem[ttype].min()
+                                        > telem[ttype].vals.min())):
+                                    temp_range[ttype]['min'] = telem[ttype].vals.min()
                                 if (temp_range[ttype]['max'] is None
                                     or (temp_range[ttype]['max']
-                                        < telem[ttype].max())):
-                                    temp_range[ttype]['max'] = telem[ttype].max()
+                                        < telem[ttype].vals.max())):
+                                    temp_range[ttype]['max'] = telem[ttype].vals.max()
 
                     except MissingDataError:
                         print "skipping %s" % pass_dir
