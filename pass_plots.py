@@ -110,7 +110,6 @@ def aca_ccd_model(tstart, tstop, init_temp):
     model = xija.ThermalModel('aca', start=tstart, stop=tstop, model_spec=model_spec)
     times = np.array([cmd_states['tstart'], cmd_states['tstop']])
     model.comp['pitch'].set_data(cmd_states['pitch'], times)
-    model.comp['eclipse'].set_data(False)
     model.comp['aca0'].set_data(init_temp, tstart)
     model.comp['aacccdpt'].set_data(init_temp, tstart)
     model.make()
