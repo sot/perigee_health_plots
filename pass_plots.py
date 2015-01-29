@@ -327,25 +327,32 @@ def plot_pass(telem, pass_dir, url, redo=False):
                ))
 
 
-        plt.figure(tfig['dacvsdtemp'].number)
+
         rand_obs_dac = (telem['dac'].vals[time_idx]
                         + np.random.random(len(telem['dac'].vals[time_idx])) - .5)
-        plt.plot(telem['aca_temp'].vals[time_idx] - telem['ccd_temp'].vals[time_idx],
-                 rand_obs_dac,
-                 color=curr_color,
-                 marker='.', markersize=1)
-        plt.figure(tfig['dac'].number)
-        plot_cxctime(telem['dac'].times[time_idx],
+        dtemp = telem['aca_temp'].vals[time_idx] - telem['ccd_temp'].vals[time_idx]
+        # Only plot if there's at least 1 unmasked sample
+        if len(np.flatnonzero(~dtemp.mask)):
+            plt.figure(tfig['dacvsdtemp'].number)
+            plt.plot(dtemp,
                      rand_obs_dac,
-                     color=curr_color, marker='.')
-        plt.figure(tfig['aca_temp'].number)
-        plot_cxctime(telem['aca_temp'].times[time_idx],
-                     telem['aca_temp'].vals[time_idx],
-                     color=curr_color, marker='.')
-        plt.figure(tfig['ccd_temp'].number)
-        plot_cxctime(telem['ccd_temp'].times[time_idx],
-                     telem['ccd_temp'].vals[time_idx],
-                     color=curr_color, marker='.')
+                     color=curr_color,
+                     marker='.', markersize=1)
+        if len(np.flatnonzero(~telem['dac'].vals[time_idx].mask)):
+            plt.figure(tfig['dac'].number)
+            plot_cxctime(telem['dac'].times[time_idx],
+                         rand_obs_dac,
+                         color=curr_color, marker='.')
+        if len(np.flatnonzero(~telem['aca_temp'].vals[time_idx].mask)):
+            plt.figure(tfig['aca_temp'].number)
+            plot_cxctime(telem['aca_temp'].times[time_idx],
+                         telem['aca_temp'].vals[time_idx],
+                         color=curr_color, marker='.')
+        if len(np.flatnonzero(~telem['ccd_temp'].vals[time_idx].mask)):
+            plt.figure(tfig['ccd_temp'].number)
+            plot_cxctime(telem['ccd_temp'].times[time_idx],
+                         telem['ccd_temp'].vals[time_idx],
+                         color=curr_color, marker='.')
 
     obslist.write("</TABLE>\n")
     obslist.close()
