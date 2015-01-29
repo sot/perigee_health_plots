@@ -159,28 +159,28 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
                                 and obsid_datestart < '%s' order by obsid_datestart"""
                              % (tstart.date, tstop.date))
 
-    # find the ERs
-    obsid_is_er = np.where(obsids['obsid'] > 40000, 1, 0)
-
-    er_starts_idx = 1 + np.flatnonzero(
-        (obsid_is_er[1:] - obsid_is_er[0:-1]) == 1)
-    er_stops_idx = np.flatnonzero(
-        (obsid_is_er[1:] - obsid_is_er[0:-1]) == -1)
-    # we can't stop before we start
-    if er_stops_idx[0] < er_starts_idx[0]:
-        er_stops_idx = er_stops_idx[1:]
-    if (np.max(er_starts_idx) > np.max(er_stops_idx)):
-        if obsids[-1]['obsid'] > 40000:
-            er_stops_idx = np.append(er_stops_idx, len(obsids) - 1)
+    # Get contiguous ER chunks, which are largely perigee passes
+    chunks = []
+    chunk = {'start': None,
+             'stop': None}
+    for obsid in obsids:
+        # If a OR, end a "chunk" of ER unless undefined
+        # (this should only append on the first OR after one or more ERs)
+        if obsid['obsid'] < 40000:
+            if chunk['start'] is not None and chunk['stop'] is not None:
+                chunks.append(chunk.copy())
+                chunk = {'start': None,
+                         'stop': None}
         else:
-            raise ValueError("ER logic fail, pass start but no stop")
-
-    er_starts = DateTime(obsids[er_starts_idx].obsid_datestart)
-    er_stops = DateTime(obsids[np.array(er_stops_idx) - 1].obsid_datestop)
+            if chunk['start'] is None:
+                chunk['start'] = obsid['obsid_datestart']
+            chunk['stop'] = obsid['obsid_datestop']
 
     pass_dirs = []
-    # for each ER chunk get telemetry (most of these will be perigee passes)
-    for er_start, er_stop in izip(er_starts.date, er_stops.date):
+    # for each ER chunk get telemetry
+    for chunk in chunks:
+        er_start = chunk['start']
+        er_stop = chunk['stop']
         log.debug("checking for %s pass" % er_start)
         if (DateTime(er_stop).secs - DateTime(er_start).secs > 86400 * 2):
             log.warn("Skipping %s pass, more than 48 hours long" % er_start)
