@@ -45,7 +45,12 @@ smtp_handler = SMTPHandler('localhost',
                            'perigee health mon')
 
 smtp_handler.setLevel(logging.WARN)
-log.addHandler(smtp_handler)
+has_smtp = None
+for h in log.handlers:
+    if isinstance(h, logging.handlers.SMTPHandler):
+        has_smtp = True
+if not has_smtp:
+    log.addHandler(smtp_handler)
 
 colors = characteristics.plot_colors
 pass_color_maker = cycle(colors)
@@ -753,7 +758,13 @@ def main():
         ch.setLevel(logging.DEBUG)
     if opt.verbose == 0:
         ch.setLevel(logging.ERROR)
-    log.addHandler(ch)
+
+    has_stream = None
+    for h in log.handlers:
+        if isinstance(h, logging.StreamHandler):
+            has_stream = True
+    if not has_stream:
+        log.addHandler(ch)
 
     PASS_DATA = os.path.join(opt.data_dir, 'PASS_DATA')
     if not os.path.exists(PASS_DATA):
