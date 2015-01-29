@@ -182,17 +182,18 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
         er_start = chunk['start']
         er_stop = chunk['stop']
         log.debug("checking for %s pass" % er_start)
-        if (DateTime(er_stop).secs - DateTime(er_start).secs > 86400 * 2):
-            log.warn("Skipping %s pass, more than 48 hours long" % er_start)
-            continue
         er_year = DateTime(er_start).mxDateTime.year
         year_dir = os.path.join(pass_data_dir, "%s" % er_year)
         if not os.access(year_dir, os.R_OK):
             os.mkdir(year_dir)
         pass_dir = os.path.join(pass_data_dir, "%s" % er_year, er_start)
-        pass_dirs.append(pass_dir)
         if not os.access(pass_dir, os.R_OK):
             os.mkdir(pass_dir)
+        if (DateTime(er_stop).secs - DateTime(er_start).secs > 86400 * 2):
+            if not os.path.exists(os.path.join(pass_dir, 'warned.txt')):
+                log.warn("Skipping %s pass, more than 48 hours long" % er_start)
+                continue
+        pass_dirs.append(pass_dir)
         made_timefile = os.path.exists(os.path.join(pass_dir, pass_time_file))
         if made_timefile:
             pass_done = Ska.Table.read_ascii_table(
