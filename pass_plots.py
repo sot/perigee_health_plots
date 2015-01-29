@@ -257,6 +257,8 @@ def perigee_parse(pass_dir, min_samples=5, time_interval=20):
                     'aca_temp': hdr3['aca_temp'],
                     'ccd_temp': hdr3['ccd_temp']}
 
+    if not len(parsed_telem['ccd_temp'].vals):
+        raise MissingDataError("No HDR3 data for pass {}".format(pass_times[0].obsid_datestart))
     return parsed_telem
 
 
