@@ -307,9 +307,11 @@ def plot_pass(telem, pass_dir, url, redo=False):
         "<TABLE BORDER=1><TR><TH>obsid</TH><TH></TH>"
         "<TH>start</TH><TH>stop</TH></TR>\n")
     uniq_obs = np.unique(telem['obsid'].vals)
+    obs_times = [telem['obsid'].times[telem['obsid'].vals == obsid][0]
+                 for obsid in uniq_obs]
 
-    # in reverse order for the ER table to look right
-    for obsid in uniq_obs[::-1]:
+    # in time order
+    for obsid in np.array(uniq_obs)[np.argsort(obs_times)]:
         obsmatch = np.flatnonzero(telem['obsid'].vals == obsid)
         curr_color = obsid_color_maker.next()
         tstart = telem['obsid'].times[obsmatch][0]
