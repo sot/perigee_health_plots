@@ -368,6 +368,7 @@ def plot_pass(telem, pass_dir, url, redo=False):
     plt.xlim(characteristics.dacvsdtemp_plot['xlim'])
     plt.xlabel("ACA temp - CCD temp (C)\n\n")
     h.subplots_adjust(bottom=0.2, left=.2)
+    plt.grid(True)
     plt.savefig(os.path.join(pass_dir, 'dacvsdtemp.png'))
     plt.close(h)
 
@@ -375,6 +376,7 @@ def plot_pass(telem, pass_dir, url, redo=False):
     plt.ylim(characteristics.dac_plot['ylim'])
     plt.ylabel('TEC DAC Control Level')
     h.subplots_adjust(left=.2)
+    plt.grid(True)
     plt.savefig(os.path.join(pass_dir, 'dac.png'))
     plt.close(h)
 
@@ -385,6 +387,7 @@ def plot_pass(telem, pass_dir, url, redo=False):
              max(characteristics.aca_temp_plot['ylim'][1],
                  aca_temp_lims[1]))
     h.subplots_adjust(left=0.2)
+    plt.grid(True)
     plt.savefig(os.path.join(pass_dir, 'aca_temp.png'))
     plt.close(h)
 
@@ -395,7 +398,7 @@ def plot_pass(telem, pass_dir, url, redo=False):
              max(characteristics.ccd_temp_plot['ylim'][1],
                  ccd_temp_lims[1]))
     plt.ylabel('CCD temp (C)')
-
+    plt.grid(True)
     plt.savefig(os.path.join(pass_dir, 'ccd_temp.png'))
     plt.close(h)
 
@@ -647,6 +650,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 plt.ylabel('TEC DAC Control Level')
                 plt.xlabel('ACA temp - CCD temp (C)')
                 f.subplots_adjust(bottom=0.2, left=0.2)
+                plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'dacvsdtemp.png'))
                 plt.close(f)
 
@@ -662,6 +666,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 dxlim = curr_xlims[1] - curr_xlims[0]
                 plt.xlim(curr_xlims[0] - time_pad * dxlim,
                          curr_xlims[1] + time_pad * dxlim)
+                plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'aca_temp.png'))
                 plt.close(f)
 
@@ -676,6 +681,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 dxlim = curr_xlims[1] - curr_xlims[0]
                 plt.xlim(curr_xlims[0] - time_pad * dxlim,
                          curr_xlims[1] + time_pad * dxlim)
+                plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp.png'))
                 plt.close(f)
 
@@ -687,6 +693,7 @@ def month_stats_and_plots(start, opt, redo=False):
                 plt.xlim(curr_xlims[0] - time_pad * dxlim,
                          curr_xlims[1] + time_pad * dxlim)
                 f.subplots_adjust(left=0.2)
+                plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'dac.png'))
                 plt.close(f)
 
@@ -726,6 +733,7 @@ def month_stats_and_plots(start, opt, redo=False):
                              temp_range['ccd_temp']['max'],
                              model_ccd_temp.comp['aacccdpt'].mvals.max()))
                 plt.ylabel('CCD Temp (C)')
+                plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
                 plt.close(f)
 
