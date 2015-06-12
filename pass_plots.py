@@ -10,7 +10,6 @@ import numpy.ma as ma
 import logging
 from logging.handlers import SMTPHandler
 from itertools import izip, cycle
-import mx.DateTime
 import jinja2
 import json
 import matplotlib
@@ -182,7 +181,7 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
         er_start = chunk['start']
         er_stop = chunk['stop']
         log.debug("checking for %s pass" % er_start)
-        er_year = DateTime(er_start).mxDateTime.year
+        er_year = DateTime(er_start).year
         year_dir = os.path.join(pass_data_dir, "%s" % er_year)
         if not os.access(year_dir, os.R_OK):
             os.mkdir(year_dir)
@@ -537,8 +536,8 @@ def month_stats_and_plots(start, opt, redo=False):
         for pass_dir in pass_dirs:
             match_date = re.search(
                 "(\d{4}:\d{3}:\d{2}:\d{2}:\d{2}\.\d{3})", pass_dir)
-            obsdate = DateTime(match_date.group(1)).mxDateTime
-            month = "%04d-M%02d" % (obsdate.year, obsdate.month)
+            obsdate = DateTime(match_date.group(1))
+            month = "%04d-M%02d" % (obsdate.year, obsdate.mon)
             try:
                 months[month].append(pass_dir)
             except KeyError:
@@ -586,7 +585,7 @@ def month_stats_and_plots(start, opt, redo=False):
                         "(\d{4}:\d{3}:\d{2}:\d{2}:\d{2}\.\d{3})", pass_dir)
                     passdate = match_date.group(1)
                     passdates.append(passdate)
-                    mxpassdate = DateTime(passdate).mxDateTime
+                    ctpassdate = DateTime(passdate)
 
                     try:
                         PASS_DATA = os.path.join(opt.data_dir, 'PASS_DATA')
@@ -598,7 +597,7 @@ def month_stats_and_plots(start, opt, redo=False):
                             "<TR><TD><A HREF=\"%s/PASS_DATA/%d/%s\">%s</A></TD>"
                             "<TD BGCOLOR=\"%s\">&nbsp;</TD></TR>\n"
                             % (opt.url_dir,
-                               mxpassdate.year,
+                               ctpassdate.year,
                                passdate,
                                DateTime(telem['dac'].times[0]).date,
                                curr_color))
@@ -790,15 +789,17 @@ def main():
     if not os.path.exists(PASS_DATA):
         os.makedirs(PASS_DATA)
 
-    nowdate = DateTime(time.time(), format='unix').mxDateTime
+    nowdate = DateTime(time.time(), format='unix')
     if opt.start_time is None:
-        nowminus = nowdate - mx.DateTime.DateTimeDeltaFromDays(opt.days_back)
+        nowminus = nowdate - int(opt.days_back)
     else:
-        nowminus = DateTime(opt.start_time).mxDateTime
-    last_month_start = mx.DateTime.DateTime(nowminus.year, nowminus.month, 1)
+        nowminus = DateTime(opt.start_time)
 
-    log.info("---------- Perigee Pass Plots ran at %s ----------" % nowdate)
-    log.info("Processing %s to %s" % (last_month_start, nowdate))
+    last_month_start = DateTime("{}-{:02d}-01 00:00:00.000".format(
+            nowminus.year, nowminus.mon))
+
+    log.info("---------- Perigee Pass Plots ran at %s ----------" % nowdate.date)
+    log.info("Processing %s to %s" % (last_month_start.date, nowdate.date))
     pass_dirs = retrieve_perigee_telem(start=nowminus, pass_data_dir=PASS_DATA)
     pass_dirs.sort()
     for pass_dir in pass_dirs:
