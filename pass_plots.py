@@ -789,7 +789,7 @@ def main():
     if not os.path.exists(PASS_DATA):
         os.makedirs(PASS_DATA)
 
-    nowdate = DateTime(time.time(), format='unix')
+    nowdate = DateTime()
     if opt.start_time is None:
         nowminus = nowdate - int(opt.days_back)
     else:
