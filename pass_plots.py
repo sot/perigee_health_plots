@@ -562,7 +562,7 @@ def month_stats_and_plots(start, opt, redo=False):
             pf.close()
 
             # only bother with recent passes unless we are in remake mode
-            if (month_range['start'] >= start) or redo:
+            if (DateTime(month_range['start']).secs >= start.secs) or redo:
 
                 tfig = {}
                 tfig['dacvsdtemp'] = plt.figure(num=5, figsize=(4, 3))
