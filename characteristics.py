@@ -14,7 +14,7 @@ min_samples = 5
 # if telem values exceed these limits, cut the values
 telem_chomp_limits = { 'dac' : { 'max': 550 },
                        'ccd_temp' : {'min' : -35,
-                                     'max' : -5 },
+                                     'max' : 50 },
                        'aca_temp' : {'max' : 50,
                                      'min' : 5 },
                        }
