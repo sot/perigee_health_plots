@@ -467,7 +467,7 @@ def per_pass_tasks(pass_tail_dir, opt):
                 and not os.path.exists(
                     os.path.join(pass_data_dir, 'warned.txt'))):
                 warn_text = (
-                    "Warning: Limit Exceeded, %s of %6.2f is > %6.2f \n at %s"
+                    "Limit Exceeded, %s of %6.2f is > %6.2f \n at %s"
                     % (type,
                        max(reduced_data[type].vals),
                        limits[type]['max'],
@@ -483,7 +483,7 @@ def per_pass_tasks(pass_tail_dir, opt):
                 and not os.path.exists(
                     os.path.join(pass_data_dir, 'warned.txt'))):
                 warn_text = (
-                    "Warning: Limit Exceeded, %s of %6.2f is < %6.2f \n at %s"
+                    "Limit Exceeded, %s of %6.2f is < %6.2f \n at %s"
                     % (type,
                        min(reduced_data[type].vals),
                        limits[type]['min'],
