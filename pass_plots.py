@@ -718,8 +718,12 @@ def month_stats_and_plots(start, opt, redo=False):
                 # Filter in place
                 ccd_temps = ccd_temps[goods]
                 ccd_times = telem.times[goods]
+                # Save some trouble and only run the model when telem is available
+                eclipse_data_range = fetch.get_time_range('AOECLIPS')
+                model_end_time = np.min([DateTime(passdates[-1]).secs + 86400,
+                                         eclipse_data_range[1]])
                 model_ccd_temp = aca_ccd_model(DateTime(passdates[0]).secs - 86400,
-                                               DateTime(passdates[-1]).secs + 86400,
+                                               model_end_time,
                                                np.mean(ccd_temps[0:10]))
                 plot_cxctime(ccd_times, ccd_temps, 'k.')
                 plot_cxctime(model_ccd_temp.times,
