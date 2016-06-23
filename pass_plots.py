@@ -364,7 +364,10 @@ def plot_pass(telem, pass_dir, url, redo=False):
     h = plt.figure(tfig['dacvsdtemp'].number)
     plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
     plt.ylabel('TEC DAC Control Level')
-    plt.xlim(characteristics.dacvsdtemp_plot['xlim'])
+    plt.xlim(min(characteristics.dacvsdtemp_plot['xlim'][0],
+                 np.min(dtemp) - .5),
+             max(characteristics.dacvsdtemp_plot['xlim'][1],
+                 np.max(dtemp) + .5))
     plt.xlabel("ACA temp - CCD temp (C)\n\n")
     h.subplots_adjust(bottom=0.2, left=.2)
     plt.grid(True)
@@ -578,7 +581,9 @@ def month_stats_and_plots(start, opt, redo=False):
                 temp_range = dict(aca_temp=dict(max=None,
                                                 min=None),
                                   ccd_temp=dict(max=None,
-                                                min=None))
+                                                min=None),
+                                  dtemp=dict(max=None,
+                                             min=None))
 
                 for pass_dir in months[month]:
                     match_date = re.search(
@@ -609,6 +614,13 @@ def month_stats_and_plots(start, opt, redo=False):
                         plt.plot(telem['aca_temp'].vals - telem['ccd_temp'].vals,
                                  rand_dac,
                                  color=curr_color, marker='.', markersize=.5)
+                        dtemp = telem['aca_temp'].vals - telem['ccd_temp'].vals
+                        if (temp_range['dtemp']['min'] is None
+                            or (temp_range['dtemp']['min'] > np.min(dtemp))):
+                                temp_range['dtemp']['min'] = np.min(dtemp)
+                        if (temp_range['dtemp']['max'] is None
+                            or (temp_range['dtemp']['max'] < np.max(dtemp))):
+                                temp_range['dtemp']['max'] = np.max(dtemp)
                         for ttype in ('aca_temp', 'ccd_temp', 'dac'):
                             plt.figure(tfig[ttype].number)
                             plot_cxctime([DateTime(passdate).secs,
@@ -645,7 +657,10 @@ def month_stats_and_plots(start, opt, redo=False):
 
                 f = plt.figure(tfig['dacvsdtemp'].number)
                 plt.ylim(characteristics.dacvsdtemp_plot['ylim'])
-                plt.xlim(characteristics.dacvsdtemp_plot['xlim'])
+                plt.xlim(min(characteristics.dacvsdtemp_plot['xlim'][0],
+                             -0.5 + temp_range['dtemp']['min']),
+                         max(characteristics.dacvsdtemp_plot['xlim'][1],
+                             +0.5 + temp_range['dtemp']['max']))
                 plt.ylabel('TEC DAC Control Level')
                 plt.xlabel('ACA temp - CCD temp (C)')
                 f.subplots_adjust(bottom=0.2, left=0.2)
