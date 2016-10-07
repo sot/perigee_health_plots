@@ -622,6 +622,8 @@ def month_stats_and_plots(start, opt, redo=False):
                             or (temp_range['dtemp']['max'] < np.max(dtemp))):
                                 temp_range['dtemp']['max'] = np.max(dtemp)
                         for ttype in ('aca_temp', 'ccd_temp', 'dac'):
+                            if telem[ttype].vals.mean() is ma.masked:
+                                raise MissingDataError("Data for pass %s is masked" % pass_dir)
                             plt.figure(tfig[ttype].number)
                             plot_cxctime([DateTime(passdate).secs,
                                           DateTime(passdate).secs],
