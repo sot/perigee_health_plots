@@ -19,15 +19,16 @@ telem_chomp_limits = { 'dac' : { 'max': 550 },
                                      'min' : 5 },
                        }
 
-# if telem values exceed these limits just warn about it
-telem_limits = {'ccd_temp': {'max': -10.2}}
+# If telem values exceed these limits send a warning
+# This is intended to be planning limit +1C
+telem_limits = {'ccd_temp': {'max': -8.5}}
 
 # plot stuff, just ranges now
 dac_plot = { 'ylim' : (460,515) }
 dacvsdtemp_plot = { 'ylim' : (460,515),
                       'xlim' : (37,40) }
-aca_temp_plot = {'ylim': (20, 28)}
-ccd_temp_plot = {'ylim': (-19, -9)}
+aca_temp_plot = {'ylim': (8, 32)}
+ccd_temp_plot = {'ylim': (-15, -5)}
 
 
 
