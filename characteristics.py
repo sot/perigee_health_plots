@@ -21,7 +21,7 @@ telem_chomp_limits = { 'dac' : { 'max': 550 },
 
 # If telem values exceed these limits send a warning
 # This is intended to be planning limit +1C
-telem_limits = {'ccd_temp': {'max': -6.8}}
+telem_limits = {'ccd_temp': {'max': -6.1}}
 
 # plot stuff, just ranges now
 dac_plot = { 'ylim' : (460,515) }
