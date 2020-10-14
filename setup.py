@@ -27,7 +27,7 @@ setup(name='aca_hi_bgd',
       use_scm_version=True,
       zip_safe=False,
       packages=['perigee_health_plots'],
-      package_data={'perigee_health_plots': 
+      package_data={'perigee_health_plots':
                     ['top_index_template.html',
                      'pass_idex_template.html',
                      'month_index_template.html']},
