@@ -20,7 +20,7 @@ else:
     data_files = None
 
 
-setup(name='aca_hi_bgd',
+setup(name='perigee_health_plots',
       author='Jean Connelly, Tom Aldcroft',
       description='ACA perigee health plots',
       author_email='jconnelly@cfa.harvard.edu',
