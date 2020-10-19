@@ -20,10 +20,11 @@ else:
     data_files = None
 
 
-setup(name='aca_hi_bgd',
+setup(name='perigee_health_plots',
       author='Jean Connelly, Tom Aldcroft',
       description='ACA perigee health plots',
       author_email='jconnelly@cfa.harvard.edu',
+      setup_requires=['setuptools_scm', 'setuptools_scm_git_archive'],
       use_scm_version=True,
       zip_safe=False,
       packages=['perigee_health_plots'],
