@@ -581,12 +581,12 @@ def month_stats_and_plots(start, opt, redo=False):
                                              'passlist.htm'), 'w')
                 passlist.write("<TABLE>\n")
                 passdates = []
-                temp_range = dict(aca_temp=dict(max=None,
-                                                min=None),
-                                  ccd_temp=dict(max=None,
-                                                min=None),
-                                  dtemp=dict(max=None,
-                                             min=None))
+                temp_range = dict(aca_temp=dict(max=ACA_TEMP_PLOT['ylim'][1],
+                                                min=ACA_TEMP_PLOT['ylim'][0]),
+                                  ccd_temp=dict(max=CCD_TEMP_PLOT['ylim'][1],
+                                                min=CCD_TEMP_PLOT['ylim'][0]),
+                                  dtemp=dict(max=DACVSDTEMP_PLOT['ylim'][1],
+                                             min=DACVSDTEMP_PLOT['ylim'][0]))
 
                 for pass_dir in months[month]:
                     match_date = re.search(
