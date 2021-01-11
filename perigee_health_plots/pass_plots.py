@@ -585,8 +585,8 @@ def month_stats_and_plots(start, opt, redo=False):
                                                 min=ACA_TEMP_PLOT['ylim'][0]),
                                   ccd_temp=dict(max=CCD_TEMP_PLOT['ylim'][1],
                                                 min=CCD_TEMP_PLOT['ylim'][0]),
-                                  dtemp=dict(max=DACVSDTEMP_PLOT['ylim'][1],
-                                             min=DACVSDTEMP_PLOT['ylim'][0]))
+                                  dtemp=dict(max=DACVSDTEMP_PLOT['xlim'][1],
+                                             min=DACVSDTEMP_PLOT['xlim'][0]))
 
                 for pass_dir in months[month]:
                     match_date = re.search(
