@@ -67,7 +67,7 @@ log.setLevel(logging.DEBUG)
 # emails...
 smtp_handler = SMTPHandler('localhost',
                            'aca@head.cfa.harvard.edu',
-                           'jconnelly@cfa.harvard.edu',
+                           'aca@cfa.harvard.edu',
                            'perigee health mon')
 
 smtp_handler.setLevel(logging.WARN)
