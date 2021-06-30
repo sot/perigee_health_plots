@@ -29,7 +29,7 @@ from Ska.engarchive import fetch
 from mica.archive import aca_hdr3
 from Ska.Matplotlib import plot_cxctime
 import xija
-
+from xija.get_model_spec import get_xija_model_spec
 
 # Colors for plots: red, green, blue, magenta, cyan, orange, purple... maybe
 PLOT_COLORS = ['#ff0000', '#00ff00', '#0000ff',
@@ -119,9 +119,7 @@ def aca_ccd_model(tstart, tstop, init_temp):
     states = kadi_states.get_states(start=tstart, stop=tstop,
                                     state_keys=state_keys, merge_identical=True)
 
-    # Cheat and get model spec from starcheck for now until xija is updated
-    import starcheck
-    model_spec = str(Path(starcheck.__file__).parent / 'data' / 'aca_spec.json')
+    model_spec, model_version = get_xija_model_spec('aca')
     model = xija.ThermalModel('aca', start=tstart, stop=tstop,
                               model_spec=model_spec)
     times = np.array([states['tstart'], states['tstop']])
@@ -131,7 +129,7 @@ def aca_ccd_model(tstart, tstop, init_temp):
     model.comp['aacccdpt'].set_data(init_temp, tstart)
     model.make()
     model.calc()
-    return model
+    return model, model_version
 
 
 def retrieve_perigee_telem(start='2009:100:00:00:00.000',
@@ -745,9 +743,10 @@ def month_stats_and_plots(start, opt, redo=False):
                 eclipse_data_range = fetch.get_time_range('AOECLIPS')
                 model_end_time = np.min([DateTime(passdates[-1]).secs + 86400,
                                          eclipse_data_range[1]])
-                model_ccd_temp = aca_ccd_model(DateTime(passdates[0]).secs - 86400,
-                                               model_end_time,
-                                               np.mean(ccd_temps[0:10]))
+                model_ccd_temp, model_version = aca_ccd_model(
+                    DateTime(passdates[0]).secs - 86400,
+                    model_end_time,
+                    np.mean(ccd_temps[0:10]))
                 plot_cxctime(ccd_times, ccd_temps, 'k.')
                 plot_cxctime(model_ccd_temp.times,
                              model_ccd_temp.comp['aacccdpt'].mvals,
@@ -758,7 +757,7 @@ def month_stats_and_plots(start, opt, redo=False):
                          max(CCD_TEMP_PLOT['ylim'][1],
                              temp_range['ccd_temp']['max'],
                              model_ccd_temp.comp['aacccdpt'].mvals.max()))
-                plt.ylabel('CCD Temp (C)')
+                plt.ylabel(f'CCD Temp (C)\nchandra_models {model_version}')
                 plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
                 plt.close(f)
