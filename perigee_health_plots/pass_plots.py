@@ -31,6 +31,7 @@ from Ska.Matplotlib import plot_cxctime
 import xija
 from xija.get_model_spec import get_xija_model_spec
 
+
 # Colors for plots: red, green, blue, magenta, cyan, orange, purple... maybe
 PLOT_COLORS = ['#ff0000', '#00ff00', '#0000ff',
                '#ff00ff', '#00ffff', '#ff6600',
