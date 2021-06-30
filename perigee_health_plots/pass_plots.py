@@ -758,7 +758,8 @@ def month_stats_and_plots(start, opt, redo=False):
                          max(CCD_TEMP_PLOT['ylim'][1],
                              temp_range['ccd_temp']['max'],
                              model_ccd_temp.comp['aacccdpt'].mvals.max()))
-                plt.ylabel(f'CCD Temp (C)\nchandra_models {model_version}')
+                plt.title(f'ACA model {model_version} vs. telemetry')
+                plt.ylabel(f'CCD Temp (C)')
                 plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
                 plt.close(f)
