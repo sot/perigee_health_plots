@@ -30,6 +30,7 @@ from mica.archive import aca_hdr3
 from Ska.Matplotlib import plot_cxctime
 import xija
 from xija.get_model_spec import get_xija_model_spec
+import proseco.characteristics
 
 
 # Colors for plots: red, green, blue, magenta, cyan, orange, purple... maybe
@@ -52,7 +53,7 @@ TELEM_CHOMP_LIMITS = {'dac': {'max': 550},
 
 # If telem values exceed these limits send a warning
 # This is intended to be planning limit +1C
-TELEM_LIMITS = {'ccd_temp': {'max': -6.5 + 1}}
+TELEM_LIMITS = {'ccd_temp': {'max': proseco.characteristics.aca_t_ccd_planning_limit + 1}}
 
 # Plot ranges
 DAC_PLOT = {'ylim': (460, 515)}
