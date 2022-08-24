@@ -14,7 +14,7 @@ entry_points = {'console_scripts': [
 
 
 if "--user" not in sys.argv:
-    share_path = os.path.join(sys.prefix, "share", "perigee_health_plots")
+    share_path = os.path.join("share", "perigee_health_plots")
     data_files = [(share_path, ['task_schedule.cfg'])]
 else:
     data_files = None
