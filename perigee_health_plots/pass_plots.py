@@ -58,9 +58,9 @@ TELEM_LIMITS = {'ccd_temp': {'max': proseco.characteristics.aca_t_ccd_planning_l
 # Plot ranges
 DAC_PLOT = {'ylim': (460, 515)}
 DACVSDTEMP_PLOT = {'ylim': (460, 515),
-                   'xlim': (37, 40)}
-ACA_TEMP_PLOT = {'ylim': (8, 32)}
-CCD_TEMP_PLOT = {'ylim': (-15, -5)}
+                   'xlim': (37, 45)}
+ACA_TEMP_PLOT = {'ylim': (20, 40)}
+CCD_TEMP_PLOT = {'ylim': (-15, -3)}
 
 
 log = logging.getLogger()
