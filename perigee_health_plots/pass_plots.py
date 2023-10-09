@@ -134,7 +134,7 @@ def aca_ccd_model(tstart, tstop, init_temp):
     return model, model_version
 
 
-def retrieve_perigee_telem(start='2009:100:00:00:00.000',
+def retrieve_telem(start='2009:100:00:00:00.000',
                            stop=None,
                            pass_data_dir='.',
                            redo=False):
@@ -157,38 +157,19 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
     if stop is None:
         tstop = DateTime()
 
-    log.info("retrieve_perigee_telem(): Checking for current telemetry from %s"
+    log.info("retrieve_telem(): Checking for current telemetry from %s"
 
              % tstart.date)
 
     pass_time_file = 'pass_times.txt'
-    obsid_events = events.obsids.filter(tstart, tstop)
 
-    # Get contiguous ER chunks, which are largely perigee passes
-    chunks = []
-    chunk = {'start': None,
-             'stop': None}
-    for obs in obsid_events:
-
-        # If a OR, end a "chunk" of ER unless undefined
-        # (this should only append on the first OR after one or more ERs)
-        if obs.obsid < 40000:
-            if chunk['start'] is not None and chunk['stop'] is not None:
-                chunks.append(chunk.copy())
-                chunk = {'start': None,
-                         'stop': None}
-        else:
-            if chunk['start'] is None:
-                chunk['start'] = obs.start
-            chunk['stop'] = obs.stop
-
+    orbits = events.orbits.filter(tstart, tstop)
     pass_dirs = []
 
-    # For each ER chunk get telemetry
-    for chunk in chunks:
-        er_start = chunk['start']
-        er_stop = chunk['stop']
-        log.debug("checking for %s pass" % er_start)
+    for orbit in orbits:
+        er_start = orbit.start
+        er_stop = orbit.stop
+        log.debug("checking for %s orbit" % er_start)
         er_year = DateTime(er_start).year
         year_dir = os.path.join(pass_data_dir, "%s" % er_year)
         if not os.access(year_dir, os.R_OK):
@@ -223,7 +204,7 @@ class MissingDataError(Exception):
     pass
 
 
-def perigee_parse(pass_dir, min_samples=5, time_interval=20):
+def orbit_parse(pass_dir, min_samples=5, time_interval=20):
     """
     Determine TEC DAC level and temperatures from available telemetry.
     Create telemetry structure.
@@ -242,7 +223,7 @@ def perigee_parse(pass_dir, min_samples=5, time_interval=20):
     :rtype: dict
     """
 
-    log.info("perigee_parse(): parsing %s" % pass_dir)
+    log.info("orbit_parse(): parsing %s" % pass_dir)
 
     pass_time_file = 'pass_times.txt'
     if not os.path.exists(os.path.join(pass_dir, pass_time_file)):
@@ -283,13 +264,13 @@ def get_telem_range(telem):
             ninety_five + ((ninety_five - five) / 9.)]
 
 
-def plot_pass(telem, pass_dir, url, redo=False):
+def plot_orbit(telem, pass_dir, url, redo=False):
     """
     Make plots of of TEC DAC level and ACA and CCD temperatures from
     8x8 image telemetry.
-    Create html for the per-pass page to contain the figures.
+    Create html for the per-orbit page to contain the figures.
 
-    :param telem: telem dict as created by perigee_parse()
+    :param telem: telem dict as created by orbit_parse()
     :param pass_dir: telemetry pass directory
     :param redo: remake image files if already present?
 
@@ -426,7 +407,7 @@ def per_pass_tasks(pass_tail_dir, opt):
     pass_data_dir = os.path.join(opt.data_dir, 'PASS_DATA', pass_tail_dir)
     if not os.path.exists(pass_data_dir):
         os.makedirs(pass_data_dir)
-    reduced_data = perigee_parse(pass_data_dir)
+    reduced_data = orbit_parse(pass_data_dir)
 
     telem_time_file = 'telem_time.htm'
     pass_web_dir = os.path.join(opt.web_dir, 'PASS_DATA', pass_tail_dir)
@@ -503,7 +484,7 @@ def per_pass_tasks(pass_tail_dir, opt):
                 warn_file.write(warn_text)
                 warn_file.close()
 
-    plot_pass(reduced_data, pass_web_dir, url=opt.url_dir)
+    plot_orbit(reduced_data, pass_web_dir, url=opt.url_dir)
     return reduced_data
 
 
@@ -834,7 +815,7 @@ def main():
 
     log.info("---------- Perigee Pass Plots ran at %s ----------" % nowdate.date)
     log.info("Processing %s to %s" % (last_month_start.date, nowdate.date))
-    pass_dirs = retrieve_perigee_telem(start=nowminus, pass_data_dir=PASS_DATA)
+    pass_dirs = retrieve_telem(start=nowminus, pass_data_dir=PASS_DATA)
     pass_dirs.sort()
     for pass_dir in pass_dirs:
         try:
