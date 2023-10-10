@@ -11,13 +11,7 @@ from itertools import cycle
 from jinja2 import Template
 import json
 import matplotlib
-
-# Matplotlib setup
-# Use Agg backend for command-line (non-interactive) operation
-if __name__ == '__main__':
-    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-plt.rcParams['lines.markeredgewidth'] = 0
 from astropy.table import Table
 
 from kadi import events
@@ -31,6 +25,9 @@ from Ska.Matplotlib import plot_cxctime
 import xija
 from xija.get_model_spec import get_xija_model_spec
 import proseco.characteristics
+
+
+plt.rcParams['lines.markeredgewidth'] = 0
 
 
 # Colors for plots: red, green, blue, magenta, cyan, orange, purple... maybe
@@ -69,7 +66,7 @@ log.setLevel(logging.DEBUG)
 # emails...
 smtp_handler = SMTPHandler('localhost',
                            'aca@head.cfa.harvard.edu',
-                           'aca@cfa.harvard.edu',
+                           'jconnelly@cfa.harvard.edu',
                            'perigee health mon')
 
 smtp_handler.setLevel(logging.WARN)
@@ -135,9 +132,9 @@ def aca_ccd_model(tstart, tstop, init_temp):
 
 
 def retrieve_telem(start='2009:100:00:00:00.000',
-                           stop=None,
-                           pass_data_dir='.',
-                           redo=False):
+                   stop=None,
+                   pass_data_dir='.',
+                   redo=False):
     """
     Retrieve perigee pass and other 8x8 image telemetry.
 
@@ -741,7 +738,7 @@ def month_stats_and_plots(start, opt, redo=False):
                              temp_range['ccd_temp']['max'],
                              model_ccd_temp.comp['aacccdpt'].mvals.max()))
                 plt.title(f'ACA model {model_version} vs. telemetry')
-                plt.ylabel(f'CCD Temp (C)')
+                plt.ylabel('CCD Temp (C)')
                 plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
                 plt.close(f)
@@ -784,6 +781,8 @@ def month_stats_and_plots(start, opt, redo=False):
 
 
 def main():
+
+    matplotlib.use("Agg")
 
     (opt, args) = get_options()
     ch = logging.StreamHandler()
