@@ -239,8 +239,8 @@ def orbit_parse(pass_dir, min_samples=5, time_interval=20):
                     'ccd_temp': hdr3['ccd_temp']}
 
     if not len(parsed_telem['ccd_temp'].vals):
-        raise MissingDataError("No HDR3 data for pass {}".format(
-                pass_times[0]['obsid_datestart']))
+        raise MissingDataError(
+            f"No HDR3 data for pass {pass_times[0]['obsid_datestart']}")
     return parsed_telem
 
 
