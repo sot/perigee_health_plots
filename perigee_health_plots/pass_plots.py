@@ -45,7 +45,7 @@ MIN_SAMPLES = 5
 TELEM_CHOMP_LIMITS = {'dac': {'max': 550},
                       'ccd_temp': {'min': -35,
                                    'max': 50},
-                      'aca_temp': {'max': 50,
+                      'aca_temp': {'max': 60,
                                    'min': 5}}
 
 # If telem values exceed these limits send a warning
@@ -56,8 +56,8 @@ TELEM_LIMITS = {'ccd_temp': {'max': proseco.characteristics.aca_t_ccd_planning_l
 DAC_PLOT = {'ylim': (460, 515)}
 DACVSDTEMP_PLOT = {'ylim': (460, 515),
                    'xlim': (37, 45)}
-ACA_TEMP_PLOT = {'ylim': (20, 40)}
-CCD_TEMP_PLOT = {'ylim': (-15, -3)}
+ACA_TEMP_PLOT = {'ylim': (9, 40)}
+CCD_TEMP_PLOT = {'ylim': (-16, -3)}
 
 
 log = logging.getLogger()
@@ -66,7 +66,7 @@ log.setLevel(logging.DEBUG)
 # emails...
 smtp_handler = SMTPHandler('localhost',
                            'aca@head.cfa.harvard.edu',
-                           'jconnelly@cfa.harvard.edu',
+                           'aca@cfa.harvard.edu',
                            'perigee health mon')
 
 smtp_handler.setLevel(logging.WARN)
