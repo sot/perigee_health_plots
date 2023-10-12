@@ -729,11 +729,11 @@ def month_stats_and_plots(start, opt, redo=False):
                              model_ccd_temp.comp['aacccdpt'].mvals,
                              'b.', markersize=2)
                 plt.ylim(min(CCD_TEMP_PLOT['ylim'][0],
-                             temp_range['ccd_temp']['min'],
-                             model_ccd_temp.comp['aacccdpt'].mvals.min()),
+                             temp_range['ccd_temp']['min'] - 1,
+                             model_ccd_temp.comp['aacccdpt'].mvals.min() - 1),
                          max(CCD_TEMP_PLOT['ylim'][1],
-                             temp_range['ccd_temp']['max'],
-                             model_ccd_temp.comp['aacccdpt'].mvals.max()))
+                             temp_range['ccd_temp']['max'] + 1,
+                             model_ccd_temp.comp['aacccdpt'].mvals.max() + 1))
                 plt.title(f'ACA model {model_version} vs. telemetry')
                 plt.ylabel('CCD Temp (C)')
                 plt.grid(True)
