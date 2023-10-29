@@ -724,17 +724,19 @@ def month_stats_and_plots(start, opt, redo=False):
                     DateTime(passdates[0]).secs - 86400,
                     model_end_time,
                     np.mean(ccd_temps[0:10]))
-                plot_cxctime(ccd_times, ccd_temps, 'k.')
+                plot_cxctime(ccd_times, ccd_temps, 'b.', markersize=2.5,
+                             label='telem')
                 plot_cxctime(model_ccd_temp.times,
                              model_ccd_temp.comp['aacccdpt'].mvals,
-                             'b.', markersize=2)
+                             'r', label='model')
                 plt.ylim(min(CCD_TEMP_PLOT['ylim'][0],
                              temp_range['ccd_temp']['min'] - 1,
                              model_ccd_temp.comp['aacccdpt'].mvals.min() - 1),
                          max(CCD_TEMP_PLOT['ylim'][1],
                              temp_range['ccd_temp']['max'] + 1,
                              model_ccd_temp.comp['aacccdpt'].mvals.max() + 1))
-                plt.title(f'ACA model {model_version} vs. telemetry')
+                plt.title(f'ACA model {model_version} and telemetry')
+                plt.legend()
                 plt.ylabel('CCD Temp (C)')
                 plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
