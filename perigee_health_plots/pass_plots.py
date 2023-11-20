@@ -11,13 +11,7 @@ from itertools import cycle
 from jinja2 import Template
 import json
 import matplotlib
-
-# Matplotlib setup
-# Use Agg backend for command-line (non-interactive) operation
-if __name__ == '__main__':
-    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
-plt.rcParams['lines.markeredgewidth'] = 0
 from astropy.table import Table
 
 from kadi import events
@@ -31,6 +25,9 @@ from Ska.Matplotlib import plot_cxctime
 import xija
 from xija.get_model_spec import get_xija_model_spec
 import proseco.characteristics
+
+
+plt.rcParams['lines.markeredgewidth'] = 0
 
 
 # Colors for plots: red, green, blue, magenta, cyan, orange, purple... maybe
@@ -48,7 +45,7 @@ MIN_SAMPLES = 5
 TELEM_CHOMP_LIMITS = {'dac': {'max': 550},
                       'ccd_temp': {'min': -35,
                                    'max': 50},
-                      'aca_temp': {'max': 50,
+                      'aca_temp': {'max': 60,
                                    'min': 5}}
 
 # If telem values exceed these limits send a warning
@@ -58,9 +55,9 @@ TELEM_LIMITS = {'ccd_temp': {'max': proseco.characteristics.aca_t_ccd_planning_l
 # Plot ranges
 DAC_PLOT = {'ylim': (460, 515)}
 DACVSDTEMP_PLOT = {'ylim': (460, 515),
-                   'xlim': (37, 40)}
-ACA_TEMP_PLOT = {'ylim': (8, 32)}
-CCD_TEMP_PLOT = {'ylim': (-15, -5)}
+                   'xlim': (37, 45)}
+ACA_TEMP_PLOT = {'ylim': (9, 40)}
+CCD_TEMP_PLOT = {'ylim': (-16, -3)}
 
 
 log = logging.getLogger()
@@ -134,10 +131,10 @@ def aca_ccd_model(tstart, tstop, init_temp):
     return model, model_version
 
 
-def retrieve_perigee_telem(start='2009:100:00:00:00.000',
-                           stop=None,
-                           pass_data_dir='.',
-                           redo=False):
+def retrieve_telem(start='2009:100:00:00:00.000',
+                   stop=None,
+                   pass_data_dir='.',
+                   redo=False):
     """
     Retrieve perigee pass and other 8x8 image telemetry.
 
@@ -157,38 +154,19 @@ def retrieve_perigee_telem(start='2009:100:00:00:00.000',
     if stop is None:
         tstop = DateTime()
 
-    log.info("retrieve_perigee_telem(): Checking for current telemetry from %s"
+    log.info("retrieve_telem(): Checking for current telemetry from %s"
 
              % tstart.date)
 
     pass_time_file = 'pass_times.txt'
-    obsid_events = events.obsids.filter(tstart, tstop)
 
-    # Get contiguous ER chunks, which are largely perigee passes
-    chunks = []
-    chunk = {'start': None,
-             'stop': None}
-    for obs in obsid_events:
-
-        # If a OR, end a "chunk" of ER unless undefined
-        # (this should only append on the first OR after one or more ERs)
-        if obs.obsid < 40000:
-            if chunk['start'] is not None and chunk['stop'] is not None:
-                chunks.append(chunk.copy())
-                chunk = {'start': None,
-                         'stop': None}
-        else:
-            if chunk['start'] is None:
-                chunk['start'] = obs.start
-            chunk['stop'] = obs.stop
-
+    orbits = events.orbits.filter(tstart, tstop)
     pass_dirs = []
 
-    # For each ER chunk get telemetry
-    for chunk in chunks:
-        er_start = chunk['start']
-        er_stop = chunk['stop']
-        log.debug("checking for %s pass" % er_start)
+    for orbit in orbits:
+        er_start = orbit.start
+        er_stop = orbit.stop
+        log.debug("checking for %s orbit" % er_start)
         er_year = DateTime(er_start).year
         year_dir = os.path.join(pass_data_dir, "%s" % er_year)
         if not os.access(year_dir, os.R_OK):
@@ -223,7 +201,7 @@ class MissingDataError(Exception):
     pass
 
 
-def perigee_parse(pass_dir, min_samples=5, time_interval=20):
+def orbit_parse(pass_dir, min_samples=5, time_interval=20):
     """
     Determine TEC DAC level and temperatures from available telemetry.
     Create telemetry structure.
@@ -242,7 +220,7 @@ def perigee_parse(pass_dir, min_samples=5, time_interval=20):
     :rtype: dict
     """
 
-    log.info("perigee_parse(): parsing %s" % pass_dir)
+    log.info("orbit_parse(): parsing %s" % pass_dir)
 
     pass_time_file = 'pass_times.txt'
     if not os.path.exists(os.path.join(pass_dir, pass_time_file)):
@@ -261,11 +239,8 @@ def perigee_parse(pass_dir, min_samples=5, time_interval=20):
                     'ccd_temp': hdr3['ccd_temp']}
 
     if not len(parsed_telem['ccd_temp'].vals):
-        if DateTime(maxtime) - DateTime(mintime) < 1.5:
-            raise MissingDataError("No HDR3 data for pass {}".format(
-                pass_times[0]['obsid_datestart']))
-        else:
-            raise ValueError("Long pass with no HDR3")
+        raise MissingDataError(
+            f"No HDR3 data for pass {pass_times[0]['obsid_datestart']}")
     return parsed_telem
 
 
@@ -283,13 +258,13 @@ def get_telem_range(telem):
             ninety_five + ((ninety_five - five) / 9.)]
 
 
-def plot_pass(telem, pass_dir, url, redo=False):
+def plot_orbit(telem, pass_dir, url, redo=False):
     """
     Make plots of of TEC DAC level and ACA and CCD temperatures from
     8x8 image telemetry.
-    Create html for the per-pass page to contain the figures.
+    Create html for the per-orbit page to contain the figures.
 
-    :param telem: telem dict as created by perigee_parse()
+    :param telem: telem dict as created by orbit_parse()
     :param pass_dir: telemetry pass directory
     :param redo: remake image files if already present?
 
@@ -426,7 +401,7 @@ def per_pass_tasks(pass_tail_dir, opt):
     pass_data_dir = os.path.join(opt.data_dir, 'PASS_DATA', pass_tail_dir)
     if not os.path.exists(pass_data_dir):
         os.makedirs(pass_data_dir)
-    reduced_data = perigee_parse(pass_data_dir)
+    reduced_data = orbit_parse(pass_data_dir)
 
     telem_time_file = 'telem_time.htm'
     pass_web_dir = os.path.join(opt.web_dir, 'PASS_DATA', pass_tail_dir)
@@ -503,7 +478,7 @@ def per_pass_tasks(pass_tail_dir, opt):
                 warn_file.write(warn_text)
                 warn_file.close()
 
-    plot_pass(reduced_data, pass_web_dir, url=opt.url_dir)
+    plot_orbit(reduced_data, pass_web_dir, url=opt.url_dir)
     return reduced_data
 
 
@@ -749,18 +724,20 @@ def month_stats_and_plots(start, opt, redo=False):
                     DateTime(passdates[0]).secs - 86400,
                     model_end_time,
                     np.mean(ccd_temps[0:10]))
-                plot_cxctime(ccd_times, ccd_temps, 'k.')
+                plot_cxctime(ccd_times, ccd_temps, 'b.', markersize=2.5,
+                             label='telem')
                 plot_cxctime(model_ccd_temp.times,
                              model_ccd_temp.comp['aacccdpt'].mvals,
-                             'b.', markersize=2)
+                             'r', label='model')
                 plt.ylim(min(CCD_TEMP_PLOT['ylim'][0],
-                             temp_range['ccd_temp']['min'],
-                             model_ccd_temp.comp['aacccdpt'].mvals.min()),
+                             temp_range['ccd_temp']['min'] - 1,
+                             model_ccd_temp.comp['aacccdpt'].mvals.min() - 1),
                          max(CCD_TEMP_PLOT['ylim'][1],
-                             temp_range['ccd_temp']['max'],
-                             model_ccd_temp.comp['aacccdpt'].mvals.max()))
-                plt.title(f'ACA model {model_version} vs. telemetry')
-                plt.ylabel(f'CCD Temp (C)')
+                             temp_range['ccd_temp']['max'] + 1,
+                             model_ccd_temp.comp['aacccdpt'].mvals.max() + 1))
+                plt.title(f'ACA model {model_version} and telemetry')
+                plt.legend()
+                plt.ylabel('CCD Temp (C)')
                 plt.grid(True)
                 plt.savefig(os.path.join(month_web_dir, 'ccd_temp_all.png'))
                 plt.close(f)
@@ -804,6 +781,8 @@ def month_stats_and_plots(start, opt, redo=False):
 
 def main():
 
+    matplotlib.use("Agg")
+
     (opt, args) = get_options()
     ch = logging.StreamHandler()
     ch.setLevel(logging.WARN)
@@ -834,7 +813,7 @@ def main():
 
     log.info("---------- Perigee Pass Plots ran at %s ----------" % nowdate.date)
     log.info("Processing %s to %s" % (last_month_start.date, nowdate.date))
-    pass_dirs = retrieve_perigee_telem(start=nowminus, pass_data_dir=PASS_DATA)
+    pass_dirs = retrieve_telem(start=nowminus, pass_data_dir=PASS_DATA)
     pass_dirs.sort()
     for pass_dir in pass_dirs:
         try:
