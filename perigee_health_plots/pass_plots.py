@@ -233,6 +233,18 @@ def orbit_parse(pass_dir, min_samples=5, time_interval=20):
     hdr3 = aca_hdr3.MSIDset(['dac', 'ccd_temp', 'aca_temp'],
                             mintime, maxtime)
 
+    # Put these on a common time grid and mask as needed
+    all_times = sorted(set(hdr3['dac'].times)
+                       | set(hdr3['ccd_temp'].times)
+                       | set(hdr3['aca_temp'].times))
+    hdr3_times = np.array(all_times)
+    for msid in ['dac', 'ccd_temp', 'aca_temp']:
+        new_vals = ma.masked_all(len(hdr3_times))
+        idx = np.searchsorted(hdr3_times, hdr3[msid].times)
+        new_vals[idx] = hdr3[msid].vals
+        hdr3[msid].vals = new_vals
+        hdr3[msid].times = hdr3_times
+
     parsed_telem = {'obsid': fetch.MSID('COBSRQID', mintime, maxtime),
                     'dac': hdr3['dac'],
                     'aca_temp': hdr3['aca_temp'],
@@ -421,62 +433,41 @@ def per_pass_tasks(pass_tail_dir, opt):
     types = ['aca_temp', 'ccd_temp', 'dac']
     filters = TELEM_CHOMP_LIMITS
     for type in filters.keys():
-        if 'max' in filters[type]:
-            maxbads = np.flatnonzero(reduced_data[type].vals > filters[type]['max'])
-            for bad in maxbads:
-                log.info("filtering %s,%s,%6.2f" %
-                         (DateTime(reduced_data[type].times[bad]).date,
-                          type,
-                          reduced_data[type].vals[bad]))
-
-            for ttype in types:
-                reduced_data[ttype].vals.mask[maxbads] = ma.masked
-        if 'min' in filters[type]:
-            minbads = np.flatnonzero(reduced_data[type].vals < filters[type]['min'])
-            for bad in minbads:
-                log.info("filtering %s,%s,%6.2f" %
-                         (DateTime(reduced_data[type].times[bad]).date,
-                          type,
-                          reduced_data[type].vals[bad]))
-            for ttype in types:
-                reduced_data[ttype].vals.mask[maxbads] = ma.masked
+        for bound in ('max', 'min'):
+            if bound in filters[type]:
+                lim = filters[type][bound]
+                vals = reduced_data[type].vals
+                bads = np.flatnonzero(vals > lim if bound == 'max' else vals < lim)
+                for bad in bads:
+                    log.info("filtering %s,%s,%6.2f" %
+                             (DateTime(reduced_data[type].times[bad]).date,
+                              type,
+                              reduced_data[type].vals[bad]))
+                for ttype in types:
+                    reduced_data[ttype].vals.mask[bads] = ma.masked
 
     # Run limit checks
     limits = TELEM_LIMITS
     pass_url = opt.web_server + os.path.join(
         opt.url_dir, 'PASS_DATA', pass_tail_dir)
     for type in limits.keys():
-        if 'max' in limits[type]:
-            if ((max(reduced_data[type].vals) > limits[type]['max'])
-                and not os.path.exists(
-                    os.path.join(pass_data_dir, 'warned.txt'))):
-                warn_text = (
-                    "Limit Exceeded, %s of %6.2f is > %6.2f \n at %s"
-                    % (type,
-                       max(reduced_data[type].vals),
-                       limits[type]['max'],
-                       pass_url))
-                log.warning(warn_text)
-                warn_file = open(
-                    os.path.join(pass_data_dir, 'warned.txt'), 'w')
-                warn_file.write(warn_text)
-                warn_file.close()
-
-        if 'min' in limits[type]:
-            if ((min(reduced_data[type].vals) < limits[type]['min'])
-                and not os.path.exists(
-                    os.path.join(pass_data_dir, 'warned.txt'))):
-                warn_text = (
-                    "Limit Exceeded, %s of %6.2f is < %6.2f \n at %s"
-                    % (type,
-                       min(reduced_data[type].vals),
-                       limits[type]['min'],
-                       pass_url))
-                log.warning(warn_text)
-                warn_file = open(
-                    os.path.join(pass_data_dir, 'warned.txt'), 'w')
-                warn_file.write(warn_text)
-                warn_file.close()
+        for bound in ('max', 'min'):
+            if bound in limits[type]:
+                lim = limits[type][bound]
+                vals = reduced_data[type].vals
+                exceeded = vals.max() > lim if bound == 'max' else vals.min() < lim
+                if exceeded and not os.path.exists(os.path.join(pass_data_dir, 'warned.txt')):
+                    warn_text = (
+                        "Limit Exceeded, %s of %6.2f is %s %6.2f \n at %s"
+                        % (type,
+                           vals.max() if bound == 'max' else vals.min(),
+                           '>' if bound == 'max' else '<',
+                           lim,
+                           pass_url))
+                    log.warning(warn_text)
+                    warn_file = open(os.path.join(pass_data_dir, 'warned.txt'), 'w')
+                    warn_file.write(warn_text)
+                    warn_file.close()
 
     plot_orbit(reduced_data, pass_web_dir, url=opt.url_dir)
     return reduced_data
