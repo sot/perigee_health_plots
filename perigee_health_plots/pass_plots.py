@@ -233,6 +233,18 @@ def orbit_parse(pass_dir, min_samples=5, time_interval=20):
     hdr3 = aca_hdr3.MSIDset(['dac', 'ccd_temp', 'aca_temp'],
                             mintime, maxtime)
 
+    # Put these on a common time grid and mask as needed
+    all_times = sorted(set(hdr3['dac'].times)
+                       | set(hdr3['ccd_temp'].times)
+                       | set(hdr3['aca_temp'].times))
+    hdr3_times = np.array(all_times)
+    for msid in ['dac', 'ccd_temp', 'aca_temp']:
+        new_vals = ma.masked_all(len(hdr3_times))
+        idx = np.searchsorted(hdr3_times, hdr3[msid].times)
+        new_vals[idx] = hdr3[msid].vals
+        hdr3[msid].vals = new_vals
+        hdr3[msid].times = hdr3_times
+
     parsed_telem = {'obsid': fetch.MSID('COBSRQID', mintime, maxtime),
                     'dac': hdr3['dac'],
                     'aca_temp': hdr3['aca_temp'],
